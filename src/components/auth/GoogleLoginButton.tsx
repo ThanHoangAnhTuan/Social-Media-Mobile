@@ -14,15 +14,18 @@ const GoogleLoginButton: FC = () => {
 
     GoogleSignin.configure({
         scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-        webClientId:
-            '871402188361-1b4l9okp1c61pseijsu6i5tf7ievbg7t.apps.googleusercontent.com',
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     });
 
     const handleGoogleSignIn = async () => {
         setMessage('');
         try {
             await GoogleSignin.hasPlayServices();
+            // await GoogleSignin.revokeAccess();
+            // await GoogleSignin.signOut();
             const userInfo: SignInResponse = await GoogleSignin.signIn();
+            console.log('userInfo:', JSON.stringify(userInfo, null, 2));
+            
             if (userInfo?.data?.idToken) {
                 const { error } = await supabase.auth.signInWithIdToken({
                     provider: 'google',

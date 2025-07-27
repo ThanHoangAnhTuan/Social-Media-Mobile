@@ -6,26 +6,30 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import FriendsScreen from '@screens/App/FriendsScreen';
 import HomeScreen from '@screens/App/HomeScreen';
-import MenuScreen from '@screens/App/MenuScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
+import ProfileScreen from '../screens/App/ProfileScreen';
 
 export type TabParamList = {
     Home: undefined;
     Friends: undefined;
     Notifications: undefined;
-    Menu: undefined;
+    Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator();
 const FriendsStack = createNativeStackNavigator();
-const MenuStack = createNativeStackNavigator();
 const NotificationStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator();
 
 const HomeStackScreen = () => {
     return (
-        <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-            <HomeStack.Screen name="HomeContent" component={HomeScreen} />
+        <HomeStack.Navigator>
+            <HomeStack.Screen
+                name="HomeContent"
+                component={HomeScreen}
+                options={{ title: 'Home' }}
+            />
         </HomeStack.Navigator>
     );
 };
@@ -36,21 +40,23 @@ const FriendsStackScreen = () => {
             <FriendsStack.Screen
                 name="FriendsContent"
                 component={FriendsScreen}
-                options={{ title: 'Bạn bè' }}
+                options={{
+                    title: 'Friends',
+                }}
             />
         </FriendsStack.Navigator>
     );
 };
 
-const MenuStackScreen = () => {
+const ProfileStackScreen = () => {
     return (
-        <MenuStack.Navigator>
-            <MenuStack.Screen
-                name="MenuContent"
-                component={MenuScreen}
-                options={{ title: 'Menu' }}
+        <ProfileStack.Navigator>
+            <ProfileStack.Screen
+                name="ProfileContent"
+                component={ProfileScreen}
+                options={{ title: 'Profile' }}
             />
-        </MenuStack.Navigator>
+        </ProfileStack.Navigator>
     );
 };
 
@@ -60,7 +66,7 @@ const NotificationStackScreen = () => {
             <NotificationStack.Screen
                 name="NotificationContent"
                 component={NotificationsScreen}
-                options={{ title: 'Thông báo' }}
+                options={{ title: 'Notifications' }}
             />
         </NotificationStack.Navigator>
     );
@@ -105,11 +111,11 @@ export default function TabsNavigator() {
                 }}
             />
             <Tab.Screen
-                name="Menu"
-                component={MenuStackScreen}
+                name="Profile"
+                component={ProfileStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <MaterialIcons name="menu" size={24} color="black" />
+                        <MaterialIcons name="person" size={24} color="black" />
                     ),
                 }}
             />

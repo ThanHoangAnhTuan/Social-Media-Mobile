@@ -1,25 +1,62 @@
-import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import TabsNavigator from './TabsNavigator';
-import MenuScreen from '@screens/App/MenuScreen';
+import React from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 
-const Drawer = createDrawerNavigator();
+import TabsNavigator from '@navigation/TabsNavigator';
+import ProfileScreen from '@screens/App/ProfileScreen';
+import CustomDrawerContent from '@components/drawer/CustomDrawerContent';
+
+export type DrawerParamList = {
+    MainTabs: undefined;
+    Profile: undefined;
+    Settings: undefined;
+    About: undefined;
+};
+
+const Drawer = createDrawerNavigator<DrawerParamList>();
 
 export default function DrawerNavigator() {
     return (
         <Drawer.Navigator
-            initialRouteName="MainTabs"
-            screenOptions={{ headerShown: false }}
+            drawerContent={(props) => <CustomDrawerContent {...props} />}
+            screenOptions={{
+                headerShown: false,
+                drawerStyle: {
+                    backgroundColor: '#fff',
+                    width: 280,
+                },
+                drawerActiveTintColor: '#2196F3',
+                drawerInactiveTintColor: '#666',
+                drawerLabelStyle: {
+                    fontSize: 16,
+                    fontWeight: '500',
+                },
+            }}
         >
             <Drawer.Screen
                 name="MainTabs"
                 component={TabsNavigator}
-                options={{ title: 'Trang chủ' }}
+                options={{
+                    drawerLabel: 'Home',
+                    drawerIcon: ({ color, size }) => (
+                        <FontAwesome6 name="house" size={size} color={color} />
+                    ),
+                }}
             />
             <Drawer.Screen
-                name="Menu"
-                component={MenuScreen}
-                options={{ title: 'Menu' }}
+                name="Profile"
+                component={ProfileScreen}
+                options={{
+                    drawerLabel: 'Profile',
+                    drawerIcon: ({ color, size }) => (
+                        <MaterialIcons
+                            name="person"
+                            size={size}
+                            color={color}
+                        />
+                    ),
+                }}
             />
         </Drawer.Navigator>
     );

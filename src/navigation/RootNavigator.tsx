@@ -1,16 +1,11 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useContext } from 'react';
 
-import AuthNavigator from '@navigation/AuthNavigator';
-import TabsNavigator from '@navigation/TabsNavigator';
-import ProfileScreen from '@screens/App/ProfileScreen';
 import { AuthContext } from '@context/AuthContext';
-import DrawerNavigator from './DrawerNavigator';
+import DrawerNavigator from '@navigation/DrawerNavigator';
 
 export type RootStackParamList = {
     Auth: undefined;
-    App: undefined;
-    Profile: undefined;
     AppDrawer: undefined;
 };
 
@@ -21,13 +16,10 @@ export default function RootNavigator() {
 
     return (
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
-            {session?.user ? (
+            <RootStack.Screen name="AppDrawer" component={DrawerNavigator} />
+            {/* {session?.user ? (
                 <RootStack.Group>
                     <RootStack.Screen name="App" component={TabsNavigator} />
-                    <RootStack.Screen
-                        name="AppDrawer"
-                        component={DrawerNavigator}
-                    />
                     <RootStack.Screen
                         name="Profile"
                         component={ProfileScreen}
@@ -35,7 +27,7 @@ export default function RootNavigator() {
                 </RootStack.Group>
             ) : (
                 <RootStack.Screen name="Auth" component={AuthNavigator} />
-            )}
+            )} */}
         </RootStack.Navigator>
     );
 }

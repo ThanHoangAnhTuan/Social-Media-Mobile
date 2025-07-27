@@ -115,6 +115,17 @@ Chỉnh sửa mã nguồn tại thư mục **app/**, **components/**, **screens/
    - Chỉ dùng biến môi trường cho các key nhạy cảm
 
 
+# tạo project
+# cấu hình consent screen
+# tạo credentials website
+- Authorized redirect URIs lấy từ supabase
+
+# tạo credentials android
+
+# gắn clientIds và client secret vào supabase và vào .env
+# add data access
+# add branching
+
 
 ## Tài nguyên tham khảo
 

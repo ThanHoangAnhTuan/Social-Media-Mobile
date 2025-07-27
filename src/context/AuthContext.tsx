@@ -89,10 +89,12 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
             },
             signOut: async () => {
                 const { error } = await supabase.auth.signOut();
+
                 if (error) {
                     console.error('Lỗi khi đăng xuất:', error.message);
                     throw error;
                 }
+                
             },
         }),
         []
