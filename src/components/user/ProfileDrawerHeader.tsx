@@ -3,11 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { AuthContext } from '@context/AuthContext';
 
-export default function ProfileDrawerHeader({
-    onProfilePress,
-}: {
-    onProfilePress?: () => void;
-}) {
+export default function ProfileDrawerHeader({onProfilePress,}: {onProfilePress?: () => void;}) {
     const { session } = useContext(AuthContext);
     const avatar =
         session?.user?.user_metadata?.avatar_url ||
@@ -17,8 +13,7 @@ export default function ProfileDrawerHeader({
         <TouchableOpacity
             style={styles.header}
             onPress={onProfilePress}
-            activeOpacity={0.7}
-        >
+            activeOpacity={0.7}>
             <Image source={{ uri: avatar }} style={styles.avatar} />
             <View style={styles.info}>
                 <Text style={styles.name}>
@@ -51,6 +46,7 @@ const styles = StyleSheet.create({
     },
     info: {
         flex: 1,
+        width: '100%',
     },
     name: {
         fontSize: 17,

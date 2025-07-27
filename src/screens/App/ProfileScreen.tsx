@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useContext } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
 import { AuthContext } from '@context/AuthContext';
 
 export default function ProfileScreen() {
@@ -104,6 +103,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 10,
+        width: '75%',
     },
     infoIcon: {
         marginRight: 8,
@@ -134,4 +134,5 @@ const styles = StyleSheet.create({
         fontSize: 15,
         marginLeft: 8,
     },
+    
 });

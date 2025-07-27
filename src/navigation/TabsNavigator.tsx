@@ -8,6 +8,7 @@ import FriendsScreen from '@screens/App/FriendsScreen';
 import HomeScreen from '@screens/App/HomeScreen';
 import MenuScreen from '@screens/App/MenuScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
+import ProfileScreen from '../screens/App/ProfileScreen';
 
 export type TabParamList = {
     Home: undefined;
@@ -32,7 +33,7 @@ const HomeStackScreen = () => {
 
 const FriendsStackScreen = () => {
     return (
-        <FriendsStack.Navigator>
+        <FriendsStack.Navigator screenOptions={{ headerShown: false }}>
             <FriendsStack.Screen
                 name="FriendsContent"
                 component={FriendsScreen}
@@ -44,11 +45,16 @@ const FriendsStackScreen = () => {
 
 const MenuStackScreen = () => {
     return (
-        <MenuStack.Navigator>
+        <MenuStack.Navigator screenOptions={{ headerShown: false }}>
             <MenuStack.Screen
                 name="MenuContent"
                 component={MenuScreen}
                 options={{ title: 'Menu' }}
+            />
+            <MenuStack.Screen
+                name="Profile"
+                component={ProfileScreen}
+                options={{ title: 'Trang cá nhân' }}
             />
         </MenuStack.Navigator>
     );
@@ -56,7 +62,7 @@ const MenuStackScreen = () => {
 
 const NotificationStackScreen = () => {
     return (
-        <NotificationStack.Navigator>
+        <NotificationStack.Navigator screenOptions={{ headerShown: false }}>
             <NotificationStack.Screen
                 name="NotificationContent"
                 component={NotificationsScreen}

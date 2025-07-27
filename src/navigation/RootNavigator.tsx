@@ -17,7 +17,7 @@ export type RootStackParamList = {
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-    const { session } = useContext(AuthContext);
+    const { session } = useContext(AuthContext); // trạng thái phiên người dùng
 
     return (
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
