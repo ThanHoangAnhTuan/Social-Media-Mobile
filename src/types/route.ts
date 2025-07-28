@@ -1,9 +1,6 @@
 export type DrawerParamList = {
     Home: undefined;
-    Profile: undefined;
     EditProfile: undefined;
-    Friends: undefined;
-    Notifications: undefined;
 };
 
 export type RootStackParamList = {

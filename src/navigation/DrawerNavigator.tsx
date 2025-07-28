@@ -5,6 +5,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import TabsNavigator from '@navigation/TabsNavigator';
 import CustomDrawerContent from '@components/drawer/CustomDrawerContent';
 import { DrawerParamList } from '../types/route';
+import EditProfileScreen from '../screens/App/EditProfileScreen';
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
@@ -16,7 +17,7 @@ export default function DrawerNavigator() {
                 headerTitle: 'My App',
                 headerTitleStyle: {
                     color: '#fff',
-                    fontSize: 20,   
+                    fontSize: 20,
                     fontWeight: 'bold',
                 },
                 headerStyle: {
@@ -45,24 +46,4 @@ export default function DrawerNavigator() {
             />
         </Drawer.Navigator>
     );
-}
-
-const getTabTitleFromTabs = (route: any) => {
-    console.log('route', route);
-    const routeName = route.state
-        ? route.state.routes[route.state.index].name
-        : 'Home';
-
-    switch (routeName) {
-        case 'Home':
-            return 'Home';
-        case 'Friends':
-            return 'Friends';
-        case 'Notifications':
-            return 'Notifications';
-        case 'Profile':
-            return 'Profile';
-        default:
-            return 'Home';
-    }
 }
