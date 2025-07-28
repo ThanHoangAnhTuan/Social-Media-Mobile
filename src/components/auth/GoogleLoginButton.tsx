@@ -32,7 +32,7 @@ const GoogleLoginButton: FC = () => {
                     token: userInfo.data.idToken,
                 });
                 if (error) {
-                    setMessage(`Lỗi đăng nhập với Google: ${error.message}`);
+                    setMessage('Đã xảy ra lỗi khi đăng nhập với Google! Vui lòng thử lại sau.');
                 } else {
                     setMessage('Đăng nhập với Google thành công!');
                 }

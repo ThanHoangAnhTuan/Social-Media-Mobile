@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
     DrawerContentScrollView,
@@ -6,9 +6,38 @@ import {
 } from '@react-navigation/drawer';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { AuthContext } from '@context/AuthContext';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { UserInfo } from '@/src/types/auth';
+import { Session } from '@supabase/supabase-js';
+import { GetUserProfile } from '@/src/services/user/UserInfo';
 
 const CustomDrawerContent = (props: any) => {
     const { session, authFunctions } = useContext(AuthContext);
+
+    const navigation = useNavigation();
+    const [profile, setProfile] = useState<UserInfo | null>(null);
+    const [loading, setLoading] = useState<boolean>(false);
+
+    const fetchUserProfile = async (session: Session) => {
+        try {
+            setLoading(true);
+            const profileData = await GetUserProfile(session);
+            setProfile(profileData);
+            console.log('Fetched user profile:', profileData);
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        React.useCallback(() => {
+            if (session) {
+                fetchUserProfile(session);
+            }
+        }, [session])
+    );
 
     return (
         <DrawerContentScrollView
@@ -19,15 +48,15 @@ const CustomDrawerContent = (props: any) => {
             <View style={styles.header}>
                 <View style={styles.profileContainer}>
                     <Image
-                        source={{ uri: 'https://via.placeholder.com/80' }}
+                        source={{ uri: profile?.avatar || 'https://via.placeholder.com/80' }}
                         style={styles.avatar}
                     />
                     <View style={styles.userInfo}>
                         <Text style={styles.userName}>
-                            {session?.user?.user_metadata?.name || 'User Name'}
+                            {profile?.fullName || ''}
                         </Text>
                         <Text style={styles.userEmail}>
-                            {session?.user?.email || 'user@example.com'}
+                            {profile?.email || ''}
                         </Text>
                     </View>
                 </View>

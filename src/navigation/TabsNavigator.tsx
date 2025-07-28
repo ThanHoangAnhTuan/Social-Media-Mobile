@@ -8,13 +8,7 @@ import FriendsScreen from '@screens/App/FriendsScreen';
 import HomeScreen from '@screens/App/HomeScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
-
-export type TabParamList = {
-    Home: undefined;
-    Friends: undefined;
-    Notifications: undefined;
-    Profile: undefined;
-};
+import { TabParamList } from '../types/route';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator();
@@ -22,27 +16,20 @@ const FriendsStack = createNativeStackNavigator();
 const NotificationStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
-const HomeStackScreen = () => {
+export const HomeStackScreen = () => {
     return (
-        <HomeStack.Navigator>
-            <HomeStack.Screen
-                name="HomeContent"
-                component={HomeScreen}
-                options={{ title: 'Home' }}
-            />
+        <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+            <HomeStack.Screen name="HomeContent" component={HomeScreen} />
         </HomeStack.Navigator>
     );
 };
 
-const FriendsStackScreen = () => {
+export const FriendsStackScreen = () => {
     return (
-        <FriendsStack.Navigator>
+        <FriendsStack.Navigator screenOptions={{ headerShown: false }}>
             <FriendsStack.Screen
                 name="FriendsContent"
                 component={FriendsScreen}
-                options={{
-                    title: 'Friends',
-                }}
             />
         </FriendsStack.Navigator>
     );
@@ -50,11 +37,10 @@ const FriendsStackScreen = () => {
 
 const ProfileStackScreen = () => {
     return (
-        <ProfileStack.Navigator>
+        <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
             <ProfileStack.Screen
                 name="ProfileContent"
                 component={ProfileScreen}
-                options={{ title: 'Profile' }}
             />
         </ProfileStack.Navigator>
     );
@@ -62,11 +48,10 @@ const ProfileStackScreen = () => {
 
 const NotificationStackScreen = () => {
     return (
-        <NotificationStack.Navigator>
+        <NotificationStack.Navigator screenOptions={{ headerShown: false }}>
             <NotificationStack.Screen
                 name="NotificationContent"
                 component={NotificationsScreen}
-                options={{ title: 'Notifications' }}
             />
         </NotificationStack.Navigator>
     );
@@ -80,7 +65,7 @@ export default function TabsNavigator() {
                 component={HomeStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <FontAwesome6 name="house" size={24} color="black" />
+                        <FontAwesome6 name="house" size={24} color={color} />
                     ),
                 }}
             />
@@ -92,7 +77,7 @@ export default function TabsNavigator() {
                         <MaterialIcons
                             name="people-alt"
                             size={24}
-                            color="black"
+                            color={color}
                         />
                     ),
                 }}
@@ -105,7 +90,7 @@ export default function TabsNavigator() {
                         <MaterialIcons
                             name="notifications"
                             size={24}
-                            color="black"
+                            color={color}
                         />
                     ),
                 }}
@@ -115,7 +100,7 @@ export default function TabsNavigator() {
                 component={ProfileStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <MaterialIcons name="person" size={24} color="black" />
+                        <MaterialIcons name="person" size={24} color={color} />
                     ),
                 }}
             />

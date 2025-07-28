@@ -1,4 +1,3 @@
-
 # Social Media App �
 
 Đây là dự án mạng xã hội di động được xây dựng bằng [React Native (Expo)](https://expo.dev) và [Supabase](https://supabase.com/) làm backend. Ứng dụng cho phép người dùng đăng nhập, quản lý hồ sơ, kết bạn, đăng bài, bình luận, thích, nhận thông báo và nhiều tính năng xã hội khác.
@@ -20,49 +19,9 @@
 - Tuân thủ quy trình Scrum: chia sprint, daily standup, review
 - Tối ưu hiệu năng, trải nghiệm người dùng
 
-
-
 ## Hướng dẫn sử dụng
 
-[//]: # (Hướng dẫn cấu hình Google Sign-In với React Native, @react-native-google-signin/google-signin và Supabase)
-### Đăng nhập Google với React Native, @react-native-google-signin/google-signin và Supabase
-
-1. **Tạo dự án trên Google Cloud Console**
-   - Vào [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials → Create credentials → OAuth client ID.
-   - Tạo 2 OAuth client ID:
-     - **Web application**: chỉ cần nhập tên (Name).
-     - **Android**: nhập tên (Name), nhập package name (lấy từ trường `"package"` trong file `app.json`), nhập SHA-1 (lấy bằng lệnh:
-       ```
-       keytool -keystore path-to-debug-or-production-keystore -list -v
-       ```
-       với `path` là file `.keystore` trong thư mục `.android` của thư mục `android` của dự án).
-
-2. **Cấu hình Supabase**
-   - Vào Supabase Dashboard → Authentication → Settings → External OAuth Providers → Google.
-   - Enable Google và dán **client ID của Android** vào trường Client ID.
-
-3. **Cấu hình trong mã nguồn React Native**
-   - Cài đặt package:
-     ```bash
-     npm install @react-native-google-signin/google-signin
-     npx pod-install
-     ```
-   - Trong code:
-     ```js
-     import { GoogleSignin } from '@react-native-google-signin/google-signin';
-     GoogleSignin.configure({
-       webClientId: 'CLIENT_ID_WEB.apps.googleusercontent.com', // client ID của Web application
-     });
-     ```
-   - Khi đăng nhập thành công, lấy `idToken` và gửi lên Supabase:
-     ```js
-     const { data, error } = await supabase.auth.signInWithIdToken({
-       provider: 'google',
-       token: idToken,
-     });
-     ```
-
-[//]: # (Hướng dẫn khởi động máy ảo với Cold booting và kiểm tra kết nối mạng)
+[//]: # 'Hướng dẫn khởi động máy ảo với Cold booting và kiểm tra kết nối mạng'
 
 ### Khởi động máy ảo Android với Cold booting và kiểm tra kết nối mạng
 
@@ -84,48 +43,63 @@ npx expo start
 ```
 
 Bạn có thể mở app trên:
+
 - Android Emulator
 - iOS Simulator
 - Expo Go
 
-
 Chỉnh sửa mã nguồn tại thư mục **app/**, **components/**, **screens/**. Dự án sử dụng [React Navigation](https://reactnative.dev/docs/navigation).
-
 
 ### Sử dụng biến môi trường với Expo
 
 Để lưu và sử dụng các key bí mật (API key, Supabase key, v.v.) trong Expo, bạn cần:
 
 1. Tạo file `.env` ở thư mục gốc dự án, các biến phải bắt đầu bằng `EXPO_PUBLIC_`, ví dụ:
-   ```env
-   EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   EXPO_PUBLIC_SUPABASE_KEY=your-secret-key
-   ```
+
+    ```env
+    EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+    EXPO_PUBLIC_SUPABASE_KEY=your-secret-key
+    ```
 
 2. Truy cập biến môi trường trong mã nguồn:
-   ```ts
-   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-   const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
-   ```
+
+    ```ts
+    const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const key = process.env.EXPO_PUBLIC_SUPABASE_KEY;
+    ```
 
 3. Tham khảo thêm: https://docs.expo.dev/guides/environment-variables/
 
 4. Lưu ý bảo mật:
-   - Không commit file `.env` lên GitHub (thêm vào `.gitignore`)
-   - Chỉ dùng biến môi trường cho các key nhạy cảm
+    - Không commit file `.env` lên GitHub (thêm vào `.gitignore`)
+    - Chỉ dùng biến môi trường cho các key nhạy cảm
 
+[//]: # 'Hướng dẫn cấu hình Google Sign-In với React Native, @react-native-google-signin/google-signin và Supabase'
 
-# tạo project
-# cấu hình consent screen
-# tạo credentials website
-- Authorized redirect URIs lấy từ supabase
+### Hướng dẫn cấu hình Google Sign-In với Supabase và React Native
 
-# tạo credentials android
+1. **Tạo project trên Google Cloud Console**
+    - Vào Google Cloud Console, tạo dự án mới.
+    - Cấu hình màn hình xác nhận (consent screen).
+    - Tạo credentials cho website (Web application).
+        - Lấy Authorized redirect URIs từ Supabase và điền vào.
+    - Tạo credentials cho Android (Android application).
+        - Nhập package name (lấy từ file `app.json`).
+        - Nhập SHA-1 (lấy bằng lệnh `keytool -keystore path-to-debug-or-production-keystore -list -v`).
 
-# gắn clientIds và client secret vào supabase và vào .env
-# add data access
-# add branching
+2. **Cấu hình Supabase**
+    - Vào Supabase Dashboard > Authentication > Settings > External OAuth Providers > Google.
+    - Bật Google và dán client ID của Android vào trường Client ID.
 
+3. **Cấu hình trong mã nguồn**
+    - Thêm các client ID và client secret vào Supabase và vào file `.env` của dự án.
+    - Ví dụ file `.env`:
+        ```
+        EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...
+        EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=...
+        ```
+
+4. **Thêm quyền truy cập dữ liệu (data access) và branching nếu cần.**
 
 ## Tài nguyên tham khảo
 
