@@ -25,7 +25,11 @@ export default function ProfileScreen(): JSX.Element {
     const fetchUserProfile = async (session: Session) => {
         try {
             setLoading(true);
-            const profileData = await GetUserProfile(session);
+            const response = await GetUserProfile(session);
+            const profileData = response.data;
+            if (!profileData) {
+                throw new Error('Không tìm thấy thông tin người dùng.');
+            }
             setProfile(profileData);
             console.log('Fetched user profile:', profileData);
         } catch (error) {

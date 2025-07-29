@@ -1,4 +1,3 @@
-
 export interface UpdatePostData {
     content?: string;
     media_urls?: string[];
@@ -60,6 +59,19 @@ export interface Post {
         name: string;
         avatar: string;
     };
+}
+
+export interface CreatePostData {
+    content: string;
+    media: MediaItem[];
+    location?: LocationData;
+    feelingActivity?: FeelingActivity;
+    privacy: 'public' | 'friends' | 'private';
+    likes: number;
+    comments: number;
+    shares: number;
+    createdAt: Date;
+    authorId: string;
 }
 
 export interface Comment {
