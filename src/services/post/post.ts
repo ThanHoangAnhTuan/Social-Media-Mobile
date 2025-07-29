@@ -1,32 +1,30 @@
 import { supabase } from '@/src/lib/supabase';
 import {
-    CreatePostData,
     Post,
     PostsFilterOptions,
     ServiceResponse,
     UpdatePostData,
 } from '@/src/types/post';
 
-const createPost = async (
-    postData: CreatePostData
-): Promise<ServiceResponse<Post>> => {
+const createPost = async (postData: Post): Promise<ServiceResponse<Post>> => {
     try {
         const { data, error } = await supabase
             .from('posts')
             .insert({
-                user_id: postData.user_id,
+                user_id: postData.author.id,
                 content: postData.content,
-                media_urls: postData.media_urls || null,
                 location: postData.location || null,
-                privacy_level: postData.privacy_level || 'public',
-                post_type: postData.post_type || 'text',
-                is_active: true,
-                like_count: 0,
-                comment_count: 0,
-                share_count: 0,
+                media: postData.media || null,
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                feeling_activity: postData.feelingActivity || null,
+                privacy: postData.privacy || 'public',
             })
             .select()
             .single();
+        console.log('createPost data:', data)
+        console.log('createPost error:', error);
 
         if (error) {
             return { success: false, error: error.message };
@@ -404,7 +402,7 @@ const decrementShareCount = async (
         };
     }
 };
-	
+
 export {
     createPost,
     updatePost,

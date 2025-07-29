@@ -8,6 +8,7 @@ export type RootStackParamList = {
     EditProfile: undefined;
     AppTabs: undefined;
     AppDrawer: undefined;
+    Test: undefined;
 };
 
 export type TabParamList = {

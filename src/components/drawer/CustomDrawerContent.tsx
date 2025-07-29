@@ -46,10 +46,10 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
         //     onPress: () =>
         //         navigation.navigate('Home', { screen: 'Notifications' }),
         // },
-        // {
-        //     label: 'Hồ sơ',
-        //     onPress: () => navigation.navigate('Home', { screen: 'Profile' }),
-        // },
+        {
+            label: 'Test',
+            onPress: () => navigation.navigate('Test'),
+        },
         {
             label: 'Chỉnh sửa hồ sơ',
             onPress: () => navigation.navigate('EditProfile'),

@@ -1,27 +1,3 @@
-export interface Post {
-    id?: number;
-    user_id: number;
-    content: string;
-    media_urls?: string[] | null;
-    location?: string | null;
-    privacy_level?: 'public' | 'friends' | 'private';
-    post_type?: 'text' | 'image' | 'video' | 'link';
-    is_active?: boolean;
-    like_count?: number;
-    comment_count?: number;
-    share_count?: number;
-    created_at?: string;
-    updated_at?: string;
-}
-
-export interface CreatePostData {
-    user_id: number;
-    content: string;
-    media_urls?: string[];
-    location?: string;
-    privacy_level?: 'public' | 'friends' | 'private';
-    post_type?: 'text' | 'image' | 'video' | 'link';
-}
 
 export interface UpdatePostData {
     content?: string;
@@ -43,4 +19,56 @@ export interface ServiceResponse<T> {
     success: boolean;
     data?: T;
     error?: string;
+}
+
+export interface MediaItem {
+    id: string;
+    type: 'image' | 'video';
+    uri: string;
+    thumbnail?: string;
+}
+
+export interface LocationData {
+    name: string;
+    address: string;
+    coordinates: {
+        latitude: number;
+        longitude: number;
+    };
+}
+
+export interface FeelingActivity {
+    type: 'feeling' | 'activity';
+    emoji: string;
+    text: string;
+}
+
+export interface Post {
+    id: string;
+    content: string;
+    media: MediaItem[];
+    location?: LocationData;
+    feelingActivity?: FeelingActivity;
+    privacy: 'public' | 'friends' | 'private';
+    likes: number;
+    comments: number;
+    shares: number;
+    isLiked: boolean;
+    createdAt: Date;
+    author: {
+        id: string;
+        name: string;
+        avatar: string;
+    };
+}
+
+export interface Comment {
+    id: string;
+    content: string;
+    author: {
+        id: string;
+        name: string;
+        avatar: string;
+    };
+    createdAt: Date;
 }
