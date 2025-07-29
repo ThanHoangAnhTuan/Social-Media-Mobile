@@ -44,20 +44,6 @@ export default function DrawerNavigator() {
                     ),
                 }}
             />
-            <Drawer.Screen
-                name="Profile"
-                component={ProfileScreen}
-                options={{
-                    drawerLabel: 'Profile',
-                    drawerIcon: ({ color, size }) => (
-                        <MaterialIcons
-                            name="person"
-                            size={size}
-                            color={color}
-                        />
-                    ),
-                }}
-            />
         </Drawer.Navigator>
     );
 }

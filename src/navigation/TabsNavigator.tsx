@@ -9,6 +9,7 @@ import HomeScreen from '@screens/App/HomeScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
 
+
 export type TabParamList = {
     Home: undefined;
     Friends: undefined;
@@ -80,7 +81,7 @@ export default function TabsNavigator() {
                 component={HomeStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <FontAwesome6 name="house" size={24} color="black" />
+                        <FontAwesome6 name="house" size={24} color={color} />
                     ),
                 }}
             />
@@ -92,7 +93,7 @@ export default function TabsNavigator() {
                         <MaterialIcons
                             name="people-alt"
                             size={24}
-                            color="black"
+                            color={color}
                         />
                     ),
                 }}
@@ -105,7 +106,7 @@ export default function TabsNavigator() {
                         <MaterialIcons
                             name="notifications"
                             size={24}
-                            color="black"
+                            color={color}
                         />
                     ),
                 }}
@@ -115,7 +116,7 @@ export default function TabsNavigator() {
                 component={ProfileStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <MaterialIcons name="person" size={24} color="black" />
+                        <MaterialIcons name="person" size={24} color={color} />
                     ),
                 }}
             />
