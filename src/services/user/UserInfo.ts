@@ -98,7 +98,10 @@ export const UpdateUserAvatar = async (
             };
         }
 
-        return { data: getSupabaseAvatarUrl(data?.path ?? '') ?? '', success: true };
+        return {
+            data: getSupabaseAvatarUrl(data?.path ?? '') ?? '',
+            success: true,
+        };
     } catch (error) {
         console.error('Error updating user avatar:', error);
         return {
@@ -151,4 +154,30 @@ export const getSupabaseAvatarUrl = (
 ): string | null => {
     if (!filePath) return null;
     return `https://arrsejmhxfisnnhybfma.supabase.co/storage/v1/object/public/uploads/${filePath}`;
+};
+
+export const getUserAvatarUrl = async (
+    session: Session
+): Promise<ServiceResponse<string>> => {
+    const userId = session?.user?.id;
+    if (!userId) return { success: false, error: 'No user ID provided' };
+
+    const { data, error: errorInfo } = await supabase
+        .from('user_info')
+        .select('avatar')
+        .eq('id', userId)
+        .maybeSingle();
+    if (errorInfo) {
+        return {
+            success: false,
+            error: 'Error fetching user info: ' + errorInfo.message,
+        };
+    }
+    return {
+        success: true,
+        data:
+            getSupabaseAvatarUrl(data?.avatar) ||
+            session.user.user_metadata?.avatar_url ||
+            'https://ui-avatars.com/api/?name=' + (session?.user?.email || 'U'),
+    };
 };
