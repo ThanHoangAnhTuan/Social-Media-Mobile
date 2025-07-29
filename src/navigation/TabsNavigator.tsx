@@ -5,14 +5,15 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import FriendsScreen from '@screens/App/FriendsScreen';
+import FriendsRequestScreen from '@screens/App/FriendsRequestScreen';
 import HomeScreen from '@screens/App/HomeScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
-import { TabParamList } from '../types/route';
+import { TabParamList, FriendsStackParamList } from '../types/route';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator();
-const FriendsStack = createNativeStackNavigator();
+const FriendsStack = createNativeStackNavigator<FriendsStackParamList>();
 const NotificationStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
@@ -30,6 +31,10 @@ export const FriendsStackScreen = () => {
             <FriendsStack.Screen
                 name="FriendsContent"
                 component={FriendsScreen}
+            />
+            <FriendsStack.Screen
+                name="FriendsRequest"
+                component={FriendsRequestScreen}
             />
         </FriendsStack.Navigator>
     );

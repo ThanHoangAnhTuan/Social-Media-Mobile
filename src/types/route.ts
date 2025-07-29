@@ -17,3 +17,8 @@ export type TabParamList = {
     Notifications: undefined;
     Profile: undefined;
 };
+
+export type FriendsStackParamList = {
+    FriendsContent: undefined;
+    FriendsRequest: undefined;
+};

@@ -6,7 +6,6 @@ import DrawerNavigator from '@navigation/DrawerNavigator';
 import EditProfileScreen from '@screens/App/EditProfileScreen';
 import AuthNavigator from '@navigation/AuthNavigator';
 import { RootStackParamList } from '../types/route';
-import PostManagementScreen from '../screens/App/PostManagementScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
@@ -24,10 +23,10 @@ export default function RootNavigator() {
                         name="EditProfile"
                         component={EditProfileScreen}
                     />
-                    <RootStack.Screen
+                    {/* <RootStack.Screen
                         name="Test"
                         component={PostManagementScreen}
-                    />
+                    /> */}
                 </RootStack.Group>
             ) : (
                 <RootStack.Screen name="Auth" component={AuthNavigator} />

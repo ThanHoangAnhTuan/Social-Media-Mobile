@@ -1,21 +1,21 @@
 import React from 'react';
 import {
-    StyleSheet,
     Text,
     View,
+    StyleSheet,
     FlatList,
     Image,
     TouchableOpacity,
-    ScrollView,
+    SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Feather } from '@expo/vector-icons';
 import { FriendsStackParamList } from '@/src/types/route';
-
-type FriendsScreenNavigationProp = NativeStackNavigationProp<
+import AntDesign from '@expo/vector-icons/AntDesign';
+type FriendsRequestScreenNavigationProp = NativeStackNavigationProp<
     FriendsStackParamList,
-    'FriendsContent'
+    'FriendsRequest'
 >;
 
 interface FriendRequest {
@@ -97,10 +97,80 @@ const mockFriendRequests: FriendRequest[] = [
         mutualFriends: 2,
         timeAgo: '3 ngày',
     },
+    {
+        id: '11',
+        name: 'Đặng Văn Hùng',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 1,
+        timeAgo: '1 ngày',
+    },
+    {
+        id: '12',
+        name: 'Lý Thị Hương',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 0,
+        timeAgo: '2 ngày',
+    },
+    {
+        id: '13',
+        name: 'Nguyễn Văn Bình',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 4,
+        timeAgo: '4 ngày',
+    },
+    {
+        id: '14',
+        name: 'Trần Thị Nga',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 0,
+        timeAgo: '1 tuần',
+    },
+    {
+        id: '15',
+        name: 'Phạm Minh Tuấn',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 2,
+        timeAgo: '2 tuần',
+    },
+    {
+        id: '16',
+        name: 'Hoàng Văn Long',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 1,
+        timeAgo: '3 tuần',
+    },
+    {
+        id: '17',
+        name: 'Nguyễn Thị Linh',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 0,
+        timeAgo: '5 tuần',
+    },
+    {
+        id: '18',
+        name: 'Vũ Văn Dũng',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 3,
+        timeAgo: '7 tuần',
+    },
+    {
+        id: '19',
+        name: 'Lê Thị Kim',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 0,
+        timeAgo: '8 tuần',
+    },
+    {
+        id: '20',
+        name: 'Đỗ Văn Thành',
+        avatar: require('../../../assets/avatar.png'),
+        mutualFriends: 1,
+        timeAgo: '10 tuần',
+    },
 ];
 
-export default function FriendsScreen() {
-    const navigation = useNavigation<FriendsScreenNavigationProp>();
+const FriendsRequestScreen = () => {
+    const navigation = useNavigation<FriendsRequestScreenNavigationProp>();
 
     const handleAcceptRequest = (id: string) => {
         console.log('Accept');
@@ -147,26 +217,34 @@ export default function FriendsScreen() {
     );
 
     return (
-        <ScrollView style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Lời mời kết bạn</Text>
                 <TouchableOpacity
-                    onPress={() => navigation.navigate('FriendsRequest')}
+                    onPress={() => {
+                        console.log('Back Back');
+                        navigation.goBack();
+                    }}
+                    style={styles.backButton}
+                    // activeOpacity={0.7}
                 >
-                    <Text style={styles.seeAllText}>Xem tất cả</Text>
+                    <AntDesign name="arrowleft" size={24} color="#1e293b" />
                 </TouchableOpacity>
+                <Text style={styles.headerTitle}>Lời mời kết bạn</Text>
+                <View style={styles.placeholder} />
             </View>
 
             <FlatList
                 data={mockFriendRequests}
                 renderItem={renderFriendRequest}
                 keyExtractor={(item) => item.id}
-                scrollEnabled={false}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContainer}
             />
-        </ScrollView>
+        </SafeAreaView>
     );
-}
+};
+
+export default FriendsRequestScreen;
 
 const styles = StyleSheet.create({
     container: {
@@ -175,23 +253,36 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 16,
         backgroundColor: '#fff',
         borderBottomWidth: 1,
         borderBottomColor: '#e2e8f0',
     },
+    backButton: {
+        marginRight: 8,
+        marginLeft: 8,
+        borderRadius: 8,
+        backgroundColor: 'transparent',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 40,
+    },
     headerTitle: {
         fontSize: 20,
         fontWeight: 'bold',
         color: '#1e293b',
+        flex: 1,
+        textAlign: 'center',
+        marginLeft: -32,
     },
-    seeAllText: {
-        fontSize: 16,
-        color: '#3b82f6',
-        fontWeight: '500',
+    placeholder: {
+        width: 40,
+    },
+    listContainer: {
+        paddingBottom: 20,
     },
     requestItem: {
         flexDirection: 'row',
