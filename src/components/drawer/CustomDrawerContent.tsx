@@ -1,14 +1,68 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
+    DrawerContentComponentProps,
     DrawerContentScrollView,
     DrawerItemList,
 } from '@react-navigation/drawer';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { AuthContext } from '@context/AuthContext';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { UserInfo } from '@/src/types/auth';
+import { Session } from '@supabase/supabase-js';
+import { GetUserProfile } from '@/src/services/user/UserInfo';
 
-const CustomDrawerContent = (props: any) => {
+const CustomDrawerContent = (props: DrawerContentComponentProps) => {
     const { session, authFunctions } = useContext(AuthContext);
+
+    const navigation = props.navigation;
+    const [profile, setProfile] = useState<UserInfo | null>(null);
+    const [loading, setLoading] = useState<boolean>(false);
+
+    const fetchUserProfile = async (session: Session) => {
+        try {
+            setLoading(true);
+            const profileData = await GetUserProfile(session);
+            setProfile(profileData);
+            console.log('Fetched user profile:', profileData);
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const menuItems = [
+        // {
+        //     label: 'Trang chủ',
+        //     onPress: () => navigation.navigate('Home', { screen: 'Home' }),
+        // },
+        // {
+        //     label: 'Bạn bè',
+        //     onPress: () => navigation.navigate('Home', { screen: 'Friends' }),
+        // },
+        // {
+        //     label: 'Thông báo',
+        //     onPress: () =>
+        //         navigation.navigate('Home', { screen: 'Notifications' }),
+        // },
+        {
+            label: 'Test',
+            onPress: () => navigation.navigate('Test'),
+        },
+        {
+            label: 'Chỉnh sửa hồ sơ',
+            onPress: () => navigation.navigate('EditProfile'),
+        },
+    ];
+
+    useFocusEffect(
+        React.useCallback(() => {
+            if (session) {
+                fetchUserProfile(session);
+            }
+        }, [session])
+    );
 
     return (
         <DrawerContentScrollView
@@ -19,24 +73,33 @@ const CustomDrawerContent = (props: any) => {
             <View style={styles.header}>
                 <View style={styles.profileContainer}>
                     <Image
-                        source={{ uri: 'https://via.placeholder.com/80' }}
+                        source={{
+                            uri:
+                                profile?.avatar ||
+                                'https://via.placeholder.com/80',
+                        }}
                         style={styles.avatar}
                     />
                     <View style={styles.userInfo}>
                         <Text style={styles.userName}>
-                            {session?.user?.user_metadata?.name || 'User Name'}
+                            {profile?.fullName || ''}
                         </Text>
                         <Text style={styles.userEmail}>
-                            {session?.user?.email || 'user@example.com'}
+                            {profile?.email || ''}
                         </Text>
                     </View>
                 </View>
             </View>
 
-            {/* Drawer Items */}
-            <View style={styles.drawerItems}>
-                <DrawerItemList {...props} />
-            </View>
+            {menuItems.map((item, index) => (
+                <TouchableOpacity
+                    key={index}
+                    style={styles.drawerItem}
+                    onPress={item.onPress}
+                >
+                    <Text style={styles.drawerItemText}>{item.label}</Text>
+                </TouchableOpacity>
+            ))}
 
             {/* Footer */}
             <View style={styles.footer}>
@@ -111,6 +174,15 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#666',
         fontWeight: '500',
+    },
+    drawerItem: {
+        padding: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    drawerItemText: {
+        fontSize: 16,
+        color: '#333',
     },
 });
 

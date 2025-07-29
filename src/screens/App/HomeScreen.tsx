@@ -85,9 +85,9 @@ export default function HomeScreen() {
                 </View>
             </View>
         );
-    }
-
-return (
+    } 
+    
+    return (
         <View style={styles.container}>
             <View style={styles.post}>
                 <Avatar.Image

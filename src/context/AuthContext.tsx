@@ -3,21 +3,11 @@ import React, { createContext, FC, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { supabase } from '@lib/supabase';
-
-interface AuthFunctions {
-    signInWithEmail: (email: string, password: string) => Promise<void>;
-    signUpWithEmail: (email: string, password: string) => Promise<void>;
-    signOut: () => Promise<void>;
-}
-
-interface AuthContextType {
-    session: Session | null;
-    authFunctions: AuthFunctions;
-}
-
-interface AuthProviderProps {
-    children: React.ReactNode;
-}
+import {
+    AuthContextType,
+    AuthFunctions,
+    AuthProviderProps,
+} from '../types/context';
 
 export const AuthContext = createContext<AuthContextType>({
     session: null,
@@ -94,7 +84,6 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
                     console.error('Lỗi khi đăng xuất:', error.message);
                     throw error;
                 }
-                
             },
         }),
         []

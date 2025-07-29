@@ -3,31 +3,35 @@ import React, { useContext } from 'react';
 
 import { AuthContext } from '@context/AuthContext';
 import DrawerNavigator from '@navigation/DrawerNavigator';
-
-export type RootStackParamList = {
-    Auth: undefined;
-    AppDrawer: undefined;
-};
+import EditProfileScreen from '@screens/App/EditProfileScreen';
+import AuthNavigator from '@navigation/AuthNavigator';
+import { RootStackParamList } from '../types/route';
+import PostManagementScreen from '../screens/App/PostManagementScreen';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
     const { session } = useContext(AuthContext);
-
     return (
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
-            <RootStack.Screen name="AppDrawer" component={DrawerNavigator} />
-            {/* {session?.user ? (
+            {session?.user ? (
                 <RootStack.Group>
-                    <RootStack.Screen name="App" component={TabsNavigator} />
                     <RootStack.Screen
-                        name="Profile"
-                        component={ProfileScreen}
+                        name="AppDrawer"
+                        component={DrawerNavigator}
+                    />
+                    <RootStack.Screen
+                        name="EditProfile"
+                        component={EditProfileScreen}
+                    />
+                    <RootStack.Screen
+                        name="Test"
+                        component={PostManagementScreen}
                     />
                 </RootStack.Group>
             ) : (
                 <RootStack.Screen name="Auth" component={AuthNavigator} />
-            )} */}
+            )}
         </RootStack.Navigator>
     );
 }
