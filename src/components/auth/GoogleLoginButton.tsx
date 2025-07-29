@@ -22,8 +22,11 @@ const GoogleLoginButton: FC = () => {
         try {
             await GoogleSignin.hasPlayServices();
             // await GoogleSignin.revokeAccess();
+           
+            
             // await GoogleSignin.signOut();
             const userInfo: SignInResponse = await GoogleSignin.signIn();
+             console.log("1");
             console.log('userInfo:', JSON.stringify(userInfo, null, 2));
             
             if (userInfo?.data?.idToken) {
@@ -49,6 +52,8 @@ const GoogleLoginButton: FC = () => {
                     'Dịch vụ Google Play không khả dụng hoặc đã lỗi thời.'
                 );
             } else {
+                console.log(error);
+                
                 setMessage(
                     'Đã xảy ra lỗi khi đăng nhập với Google! Vui lòng thử lại sau.'
                 );
