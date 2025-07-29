@@ -18,14 +18,13 @@ import {
     FlatList,
     Share,
     Dimensions,
-    Platform,
 } from 'react-native';
-import { Session } from '@supabase/supabase-js';
 import { AuthContext } from '@context/AuthContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import {
     Comment,
+    CreatePostData,
     FeelingActivity,
     LocationData,
     MediaItem,
@@ -199,8 +198,7 @@ export default function PostManagementScreen(): JSX.Element {
             return;
         }
 
-        const newPost: Post = {
-            id: Date.now().toString(),
+        const newPost: CreatePostData = {
             content: postContent,
             media: selectedMedia,
             location: selectedLocation || undefined,
@@ -209,18 +207,12 @@ export default function PostManagementScreen(): JSX.Element {
             likes: 0,
             comments: 0,
             shares: 0,
-            isLiked: false,
             createdAt: new Date(),
-            author: {
-                id: '6b890279-bcbd-4c5e-adc3-6a92e8ec90bb',
-                name: 'Nguyễn Văn A',
-                avatar: 'https://picsum.photos/100/100?random=user1',
-            },
+            authorId: '6b890279-bcbd-4c5e-adc3-6a92e8ec90bb',
         };
 
-        setPosts([newPost, ...posts]);
         try {
-            const response = await createPost(newPost);
+            const response = await createPost(session!, newPost);
             if (response.success) {
                 if (response.data) {
 					console.log("createPost response:", response.data);

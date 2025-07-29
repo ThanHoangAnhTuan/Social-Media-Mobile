@@ -89,6 +89,7 @@ export default function HomeScreen() {
     
     return (
         <View style={styles.container}>
+        
             <View style={styles.post}>
                 <Avatar.Image
                     size={50}

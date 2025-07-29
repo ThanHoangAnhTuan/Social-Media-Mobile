@@ -1,17 +1,22 @@
 import { supabase } from '@/src/lib/supabase';
 import {
+    CreatePostData,
     Post,
     PostsFilterOptions,
     ServiceResponse,
     UpdatePostData,
 } from '@/src/types/post';
+import { Session } from '@supabase/supabase-js';
 
-const createPost = async (postData: Post): Promise<ServiceResponse<Post>> => {
+const createPost = async (
+    session: Session,
+    postData: CreatePostData
+): Promise<ServiceResponse<Post>> => {
     try {
         const { data, error } = await supabase
             .from('posts')
             .insert({
-                user_id: postData.author.id,
+                user_id: postData.authorId,
                 content: postData.content,
                 location: postData.location || null,
                 media: postData.media || null,
@@ -23,19 +28,35 @@ const createPost = async (postData: Post): Promise<ServiceResponse<Post>> => {
             })
             .select()
             .single();
-        console.log('createPost data:', data)
-        console.log('createPost error:', error);
+
+        const newPost: Post = {
+            id: data.id || '',
+            content: postData.content,
+            media: postData.media || [],
+            location: postData.location || undefined,
+            feelingActivity: postData.feelingActivity || undefined,
+            privacy: postData.privacy || 'public',
+            likes: 0,
+            comments: 0,
+            shares: 0,
+            isLiked: false,
+            createdAt: new Date(),
+            author: {
+                id: session.user.id,
+                name: session.user.user_metadata.full_name,
+                avatar: session.user.user_metadata.avatar_url,
+            },
+        };
 
         if (error) {
             return { success: false, error: error.message };
         }
 
-        return { success: true, data };
+        return { success: true, data: newPost };
     } catch (error) {
         return {
             success: false,
-            error:
-                error instanceof Error ? error.message : 'Lỗi không xác định',
+            error: 'Đã xảy ra lỗi khi tạo bài viết! Vui lòng thử lại sau.'
         };
     }
 };

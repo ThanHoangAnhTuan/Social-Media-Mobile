@@ -19,8 +19,10 @@ import { FormData } from '@/src/types/auth';
 import { AuthContext } from '@context/AuthContext';
 import {
     GetUserProfile,
+    UpdateUserAvatar,
     UpdateUserProfile,
 } from '@/src/services/user/UserInfo';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function EditProfileScreen(): JSX.Element {
     const { session } = useContext(AuthContext);
@@ -38,7 +40,11 @@ export default function EditProfileScreen(): JSX.Element {
     useEffect(() => {
         const fetchUserProfile = async (session: Session) => {
             try {
-                const profile = await GetUserProfile(session);
+                const response = await GetUserProfile(session);
+                const profile = response.data;
+                if (!profile) {
+                    throw new Error('Không tìm thấy thông tin người dùng.');
+                }
                 setFormData({
                     fullName: profile.fullName || null,
                     email: profile.email || null,
@@ -63,6 +69,9 @@ export default function EditProfileScreen(): JSX.Element {
     const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
     const [showGenderModal, setShowGenderModal] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(false);
+    const [avatarLoading, setAvatarLoading] = useState<boolean>(false);
+    const [showImagePickerModal, setShowImagePickerModal] =
+        useState<boolean>(false);
 
     const genderOptions = [
         { label: 'Nam', value: 'male' },
@@ -108,6 +117,92 @@ export default function EditProfileScreen(): JSX.Element {
         }));
     };
 
+    const handleImagePicker = async (type: 'camera' | 'gallery') => {
+        try {
+            setShowImagePickerModal(false);
+            let result;
+
+            if (type === 'camera') {
+                // Xin quyền camera
+                const { status } =
+                    await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert(
+                        'Lỗi',
+                        'Cần quyền truy cập camera để chụp ảnh!'
+                    );
+                    return;
+                }
+
+                result = await ImagePicker.launchCameraAsync({
+                    mediaTypes: ['images', 'videos'],
+                    allowsEditing: true,
+                    aspect: [4, 3],
+                    quality: 1,
+                });
+                console.log('ImagePicker camera result:', result);
+            } else {
+                // Xin quyền thư viện ảnh
+                const { status } =
+                    await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Lỗi', 'Cần quyền truy cập thư viện ảnh!');
+                    return;
+                }
+
+                result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ['images', 'videos'],
+                    allowsEditing: true,
+                    aspect: [4, 3],
+                    quality: 1,
+                });
+                console.log('ImagePicker library result:', result);
+            }
+
+            console.log(result);
+
+            if (!result.canceled && result.assets[0]) {
+                await handleUpdateAvatar(result.assets[0].uri);
+            }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('Lỗi', 'Không thể chọn ảnh. Vui lòng thử lại!');
+        }
+    };
+
+    const handleUpdateAvatar = async (imageUri: string) => {
+        if (!session) {
+            Alert.alert('Lỗi', 'Bạn cần đăng nhập để cập nhật ảnh đại diện.');
+            return;
+        }
+
+        setAvatarLoading(true);
+        try {
+            // Gọi API cập nhật avatar
+            const response = await UpdateUserAvatar(session, imageUri);
+            const updatedAvatarUrl = response.data;
+            if (!updatedAvatarUrl) {
+                throw new Error('Không thể cập nhật ảnh đại diện.');
+            }
+
+            // Cập nhật avatar trong formData
+            setFormData((prev) => ({
+                ...prev,
+                avatar: updatedAvatarUrl,
+            }));
+
+            Alert.alert('Thành công', 'Ảnh đại diện đã được cập nhật!');
+        } catch (error) {
+            console.error('Error updating avatar:', error);
+            Alert.alert(
+                'Lỗi',
+                'Không thể cập nhật ảnh đại diện. Vui lòng thử lại!'
+            );
+        } finally {
+            setAvatarLoading(false);
+        }
+    };
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f8fafc' }}>
             <ScrollView
@@ -130,7 +225,11 @@ export default function EditProfileScreen(): JSX.Element {
                             }}
                             style={styles.avatar}
                         />
-                        <TouchableOpacity style={styles.changeAvatarBtn}>
+                        <TouchableOpacity
+                            style={styles.changeAvatarBtn}
+                            disabled={avatarLoading}
+                            onPress={() => setShowImagePickerModal(true)}
+                        >
                             <Feather name="camera" size={16} color="#fff" />
                         </TouchableOpacity>
                     </View>
@@ -322,6 +421,57 @@ export default function EditProfileScreen(): JSX.Element {
                         )}
                     </TouchableOpacity>
                 </View>
+
+                {/* Image Picker Modal */}
+                <Modal
+                    visible={showImagePickerModal}
+                    transparent
+                    animationType="slide"
+                    onRequestClose={() => setShowImagePickerModal(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                            <Text style={styles.modalTitle}>
+                                Chọn ảnh đại diện
+                            </Text>
+
+                            <TouchableOpacity
+                                style={styles.imagePickerOption}
+                                onPress={() => handleImagePicker('camera')}
+                            >
+                                <Feather
+                                    name="camera"
+                                    size={24}
+                                    color="#6366f1"
+                                />
+                                <Text style={styles.imagePickerOptionText}>
+                                    Chụp ảnh mới
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.imagePickerOption}
+                                onPress={() => handleImagePicker('gallery')}
+                            >
+                                <Feather
+                                    name="image"
+                                    size={24}
+                                    color="#6366f1"
+                                />
+                                <Text style={styles.imagePickerOptionText}>
+                                    Chọn từ thư viện
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.modalCancelButton}
+                                onPress={() => setShowImagePickerModal(false)}
+                            >
+                                <Text style={styles.modalCancelText}>Hủy</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
 
                 {/* Gender Modal */}
                 <Modal
@@ -558,5 +708,18 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#6b7280',
         fontWeight: '500',
+    },
+    imagePickerOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f3f4f6',
+    },
+    imagePickerOptionText: {
+        fontSize: 16,
+        color: '#374151',
+        marginLeft: 16,
     },
 });
