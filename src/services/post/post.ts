@@ -1,12 +1,16 @@
+import { Session } from '@supabase/supabase-js';
+
 import { supabase } from '@/src/lib/supabase';
 import {
     CreatePostData,
     Post,
     PostsFilterOptions,
-    ServiceResponse,
     UpdatePostData,
+    // PostsFilterOptions,
+    // ServiceResponse,
+    // UpdatePostData,
 } from '@/src/types/post';
-import { Session } from '@supabase/supabase-js';
+import { ServiceResponse } from '@/src/types/response';
 
 const createPost = async (
     session: Session,
@@ -24,7 +28,7 @@ const createPost = async (
                 comments: 0,
                 shares: 0,
                 feeling_activity: postData.feelingActivity || null,
-                privacy: postData.privacy || 'public',
+                privacy: postData.privacy,
             })
             .select()
             .single();
@@ -33,8 +37,8 @@ const createPost = async (
             id: data.id || '',
             content: postData.content,
             media: postData.media || [],
-            location: postData.location || undefined,
-            feelingActivity: postData.feelingActivity || undefined,
+            location: postData.location || null,
+            feelingActivity: postData.feelingActivity || null,
             privacy: postData.privacy || 'public',
             likes: 0,
             comments: 0,
@@ -56,7 +60,7 @@ const createPost = async (
     } catch (error) {
         return {
             success: false,
-            error: 'Đã xảy ra lỗi khi tạo bài viết! Vui lòng thử lại sau.'
+            error: 'Đã xảy ra lỗi khi tạo bài viết! Vui lòng thử lại sau.',
         };
     }
 };
@@ -238,26 +242,33 @@ const getPostById = async (postId: number): Promise<ServiceResponse<Post>> => {
 };
 
 const getPosts = async (
-    options: PostsFilterOptions = {}
+    options: PostsFilterOptions = {
+        userId: 0,
+        privacyLevel: 'public',
+        postType: 'text',
+        isActive: true,
+        limit: 10,
+        offset: 0,
+    }
 ): Promise<ServiceResponse<Post[]>> => {
     try {
         let query = supabase
             .from('posts')
             .select('*')
-            .eq('is_active', options.is_active ?? true)
+            .eq('isActive', options.isActive ?? true)
             .order('created_at', { ascending: false });
 
         // Áp dụng các filter
-        if (options.user_id) {
-            query = query.eq('user_id', options.user_id);
+        if (options.userId) {
+            query = query.eq('userId', options.userId);
         }
 
-        if (options.privacy_level) {
-            query = query.eq('privacy_level', options.privacy_level);
+        if (options.privacyLevel) {
+            query = query.eq('privacyLevel', options.privacyLevel);
         }
 
-        if (options.post_type) {
-            query = query.eq('post_type', options.post_type);
+        if (options.postType) {
+            query = query.eq('postType', options.postType);
         }
 
         // Pagination

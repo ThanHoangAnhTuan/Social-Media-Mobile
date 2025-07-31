@@ -15,7 +15,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Session } from '@supabase/supabase-js';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FormData } from '@/src/types/auth';
+import { UpdateUserInfo } from '@/src/types/auth';
 import { AuthContext } from '@context/AuthContext';
 import {
     GetUserProfile,
@@ -27,7 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 export default function EditProfileScreen(): JSX.Element {
     const { session } = useContext(AuthContext);
 
-    const [formData, setFormData] = useState<FormData>({
+    const [formData, setFormData] = useState<UpdateUserInfo>({
         fullName: null,
         email: null,
         phone: null,
@@ -46,15 +46,15 @@ export default function EditProfileScreen(): JSX.Element {
                     throw new Error('Không tìm thấy thông tin người dùng.');
                 }
                 setFormData({
-                    fullName: profile.fullName || null,
-                    email: profile.email || null,
-                    phone: profile.phone || null,
-                    address: profile.address || null,
+                    fullName: profile.fullName,
+                    email: profile.email,
+                    phone: profile.phone,
+                    address: profile.address,
                     birthDate: profile.birthDate
                         ? new Date(profile.birthDate)
                         : null,
-                    gender: profile.gender || null,
-                    avatar: profile.avatar || null,
+                    gender: profile.gender,
+                    avatar: profile.avatar,
                 });
             } catch (error) {
                 console.error('Error fetching user profile:', error);
@@ -89,7 +89,7 @@ export default function EditProfileScreen(): JSX.Element {
             // Update the user profile
             console.log('Updating user profile with data:', formData);
 
-            await UpdateUserProfile(session, formData);
+            await UpdateUserProfile(session.user.id, formData);
 
             Alert.alert('Thành công', 'Hồ sơ đã được cập nhật!');
         } catch (error) {
@@ -110,8 +110,8 @@ export default function EditProfileScreen(): JSX.Element {
         return option?.label || 'Chọn giới tính';
     };
 
-    const updateFormData = (field: keyof FormData, value: any) => {
-        setFormData((prev) => ({
+    const updateFormData = (field: keyof UpdateUserInfo, value: any) => {
+        setFormData((prev: UpdateUserInfo) => ({
             ...prev,
             [field]: value,
         }));
@@ -186,7 +186,7 @@ export default function EditProfileScreen(): JSX.Element {
             }
 
             // Cập nhật avatar trong formData
-            setFormData((prev) => ({
+            setFormData((prev: UpdateUserInfo) => ({
                 ...prev,
                 avatar: updatedAvatarUrl,
             }));

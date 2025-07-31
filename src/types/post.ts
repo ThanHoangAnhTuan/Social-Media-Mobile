@@ -1,23 +1,19 @@
 export interface UpdatePostData {
-    content?: string;
-    media_urls?: string[];
-    location?: string;
-    post_type?: 'text' | 'image' | 'video' | 'link';
+    content: string;
+    media: MediaItem[];
+    location: LocationData | null;
+    feelingActivity: FeelingActivity | null;
+    privacy: 'public' | 'friends' | 'private';
+    authorId: string;
 }
 
 export interface PostsFilterOptions {
-    user_id?: number;
-    privacy_level?: 'public' | 'friends' | 'private';
-    post_type?: 'text' | 'image' | 'video' | 'link';
-    is_active?: boolean;
-    limit?: number;
-    offset?: number;
-}
-
-export interface ServiceResponse<T> {
-    success: boolean;
-    data?: T;
-    error?: string;
+    userId: number;
+    privacyLevel: 'public' | 'friends' | 'private';
+    postType: 'text' | 'image' | 'video' | 'link';
+    isActive: boolean;
+    limit: number;
+    offset: number;
 }
 
 export interface MediaItem {
@@ -46,8 +42,8 @@ export interface Post {
     id: string;
     content: string;
     media: MediaItem[];
-    location?: LocationData;
-    feelingActivity?: FeelingActivity;
+    location: LocationData | null;
+    feelingActivity: FeelingActivity | null;
     privacy: 'public' | 'friends' | 'private';
     likes: number;
     comments: number;
@@ -64,13 +60,9 @@ export interface Post {
 export interface CreatePostData {
     content: string;
     media: MediaItem[];
-    location?: LocationData;
-    feelingActivity?: FeelingActivity;
+    location: LocationData | null;
+    feelingActivity: FeelingActivity | null;
     privacy: 'public' | 'friends' | 'private';
-    likes: number;
-    comments: number;
-    shares: number;
-    createdAt: Date;
     authorId: string;
 }
 

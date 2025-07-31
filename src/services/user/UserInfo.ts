@@ -1,21 +1,15 @@
 import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/src/lib/supabase';
-import { FormData, UserInfo } from '@/src/types/auth';
-import {
-    useImageManipulator,
-    SaveFormat,
-    ImageManipulator,
-} from 'expo-image-manipulator';
+import { UpdateUserInfo, UserInfo } from '@/src/types/auth';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
-import { ServiceResponse } from '@/src/types/post';
+import { ServiceResponse } from '@/src/types/response';
 
 export const UpdateUserProfile = async (
-    session: Session,
-    formData: FormData
+    userId: string,
+    formData: UpdateUserInfo
 ): Promise<ServiceResponse<void>> => {
-    const userId = session?.user?.id;
     const { fullName, address, gender, birthDate, phone } = formData;
     const { error } = await supabase.from('user_info').upsert(
         {

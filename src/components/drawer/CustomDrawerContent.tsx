@@ -22,9 +22,13 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
     const fetchUserProfile = async (session: Session) => {
         try {
             setLoading(true);
-            const profileData = await GetUserProfile(session);
-            setProfile(profileData);
-            console.log('Fetched user profile:', profileData);
+            const response = await GetUserProfile(session);
+            if (!response.success) {
+                console.error('Failed to fetch user profile:', response.error);
+                return;
+            }
+            setProfile(response.data as UserInfo);
+            console.log('Fetched user profile:', response.data);
         } catch (error) {
             console.error('Error fetching user profile:', error);
         } finally {

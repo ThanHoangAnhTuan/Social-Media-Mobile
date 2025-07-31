@@ -1,17 +1,4 @@
-export interface User {
-    id: string;
-    email?: string;
-    user_metadata?: {
-        full_name?: string;
-        avatar_url?: string;
-        gender?: string;
-        birth_date?: string;
-        address?: string;
-        phone?: string;
-    };
-}
-
-export interface FormData {
+export interface UpdateUserInfo {
     fullName: string | null;
     email: string | null;
     phone: string | null;
@@ -30,10 +17,4 @@ export interface UserInfo {
     gender: string | null;
     birthDate: Date | null;
     avatar: string | null;
-}
-
-export interface Session {
-    user: User;
-    access_token?: string;
-    refresh_token?: string;
 }

@@ -4,7 +4,13 @@ import {
     Ionicons,
     FontAwesome5,
 } from '@expo/vector-icons';
-import React, { JSX, useContext, useState, useEffect } from 'react';
+import React, {
+    JSX,
+    useContext,
+    useState,
+    useEffect,
+    useCallback,
+} from 'react';
 import {
     Image,
     StyleSheet,
@@ -26,6 +32,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import {
     Comment,
+    CreatePostData,
     FeelingActivity,
     LocationData,
     MediaItem,
@@ -38,6 +45,8 @@ import {
     PRIVACY_OPTIONS,
 } from '@/src/constants/Post';
 import { createPost } from '@/src/services/post/post';
+import { useFocusEffect } from '@react-navigation/native';
+import { getUserAvatarUrl } from '@/src/services/user/UserInfo';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -70,6 +79,32 @@ export default function HomeScreen(): JSX.Element {
         useState<FeelingActivity | null>(null);
     const [selectedBackground, setSelectedBackground] =
         useState<string>('transparent');
+
+    const [avatar, setAvatar] = useState<string>('');
+    const fetchUserAvatar = async (session: Session) => {
+        try {
+            setLoading(true);
+            const response = await getUserAvatarUrl(session);
+            const avatarData = response.data;
+            if (!avatarData) {
+                throw new Error('Không tìm thấy thông tin người dùng.');
+            }
+            setAvatar(avatarData);
+            console.log('Fetched user profile:', avatarData);
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            if (session) {
+                fetchUserAvatar(session);
+            }
+        }, [session])
+    );
 
     const mockPosts: Post[] = [
         {
@@ -136,6 +171,7 @@ export default function HomeScreen(): JSX.Element {
                 emoji: '🎵',
                 text: 'đang nghe nhạc',
             },
+            location: null,
             privacy: 'friends',
             likes: 15,
             comments: 12,
@@ -199,35 +235,23 @@ export default function HomeScreen(): JSX.Element {
             return;
         }
 
-        const newPost: Post = {
-            id: Date.now().toString(),
+        const newPost: CreatePostData = {
             content: postContent,
             media: selectedMedia,
-            location: selectedLocation || undefined,
-            feelingActivity: selectedFeelingActivity || undefined,
+            location: selectedLocation || null,
+            feelingActivity: selectedFeelingActivity || null,
             privacy: postPrivacy,
-            likes: 0,
-            comments: 0,
-            shares: 0,
-            isLiked: false,
-            createdAt: new Date(),
-            author: {
-                id: '6b890279-bcbd-4c5e-adc3-6a92e8ec90bb',
-                name: 'Nguyễn Văn A',
-                avatar: 'https://picsum.photos/100/100?random=user1',
-            },
+            authorId: session?.user?.id || '',
         };
 
-        setPosts([newPost, ...posts]);
         try {
-            const response = await createPost(newPost);
+            const response = await createPost(session!, newPost);
             if (response.success) {
                 if (response.data) {
-					console.log("createPost response:", response.data);
                     setPosts([response.data, ...posts]);
                 }
             } else {
-                Alert.alert('Lỗi', response.error);
+                Alert.alert('Lỗi', response.error || 'Không thể tạo bài viết');
             }
         } catch (error) {
             Alert.alert('Lỗi', 'Không thể tạo bài viết. Vui lòng thử lại sau.');
@@ -251,8 +275,8 @@ export default function HomeScreen(): JSX.Element {
                       content: postContent,
                       privacy: postPrivacy,
                       media: selectedMedia,
-                      location: selectedLocation || undefined,
-                      feelingActivity: selectedFeelingActivity || undefined,
+                      location: selectedLocation || null,
+                      feelingActivity: selectedFeelingActivity || null,
                       backgroundColor:
                           selectedBackground !== 'transparent'
                               ? selectedBackground
@@ -346,7 +370,7 @@ export default function HomeScreen(): JSX.Element {
 
         const renderMediaItem = (item: MediaItem, index: number) => {
             const isVideo = item.type === 'video';
-            
+
             // Calculate dimensions based on media count
             let itemStyle = {};
             if (media.length === 1) {
@@ -354,16 +378,16 @@ export default function HomeScreen(): JSX.Element {
             } else if (media.length === 2) {
                 itemStyle = styles.doubleMedia;
             } else if (media.length === 3) {
-                itemStyle = index === 0 ? styles.tripleMediaLarge : styles.tripleMediaSmall;
+                itemStyle =
+                    index === 0
+                        ? styles.tripleMediaLarge
+                        : styles.tripleMediaSmall;
             } else {
                 itemStyle = styles.quadMedia;
             }
 
             return (
-                <View
-                    key={item.id}
-                    style={[styles.mediaItem, itemStyle]}
-                >
+                <View key={item.id} style={[styles.mediaItem, itemStyle]}>
                     <Image
                         source={{ uri: item.uri }}
                         style={styles.mediaImage}
@@ -825,8 +849,8 @@ export default function HomeScreen(): JSX.Element {
             {/*Header */}
             <View style={styles.Header}>
                 <Image
-                    source={{ 
-                        uri: session?.user?.user_metadata?.avatar_url
+                    source={{
+                        uri: avatar,
                     }}
                     style={styles.userAvatar}
                 />

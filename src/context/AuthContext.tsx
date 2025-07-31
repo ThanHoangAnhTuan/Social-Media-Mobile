@@ -7,7 +7,7 @@ import {
     AuthContextType,
     AuthFunctions,
     AuthProviderProps,
-} from '../types/context';
+} from '@/src/types/context';
 
 export const AuthContext = createContext<AuthContextType>({
     session: null,
