@@ -1,20 +1,13 @@
 import { Feather, MaterialIcons } from '@expo/vector-icons';
 import React, { JSX, useContext, useState } from 'react';
-import {
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ScrollView,
-} from 'react-native';
-import { Session } from '@supabase/supabase-js';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { UserInfo } from '@/src/types/auth';
 import { AuthContext } from '@context/AuthContext';
 import { GetUserProfile } from '@/src/services/user/UserInfo';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { InfoRowProps } from '@/src/types/screen';
+import { UserInfo } from '@/src/types/auth';
+import { Session } from '@supabase/supabase-js';
 
 export default function ProfileScreen(): JSX.Element {
     const { session } = useContext(AuthContext);
@@ -325,8 +318,7 @@ const styles = StyleSheet.create({
     infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 16,
-        paddingVertical: 8,
+        marginBottom: 10,
     },
     iconContainer: {
         width: 44,
@@ -401,4 +393,5 @@ const styles = StyleSheet.create({
         fontSize: 16,
         marginLeft: 8,
     },
+    
 });
