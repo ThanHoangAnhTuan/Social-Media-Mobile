@@ -27,8 +27,8 @@ export default function FriendsScreen() {
 
     const handleAcceptRequest = (request: FriendRequest) => {
         AddFriendRequest(
-            request.requester_id,
             request.addressee_id,
+            request.requester_id,
             'accepted',
         );
         if (request.status === 'pending') {
@@ -43,8 +43,8 @@ export default function FriendsScreen() {
 
     const handleDeclineRequest = (request: FriendRequest) => {
         AddFriendRequest(
-            request.requester_id,
             request.addressee_id,
+            request.requester_id,
             'declined',
         );
         // console.log('Declined friend request with ID:', request.id);

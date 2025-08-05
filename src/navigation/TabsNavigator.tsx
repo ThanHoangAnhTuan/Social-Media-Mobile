@@ -17,7 +17,7 @@ const FriendsStack = createNativeStackNavigator<FriendsStackParamList>();
 const NotificationStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 const PersonalStack = createNativeStackNavigator();
-const MenuStack = createNativeStackNavigator();
+
 export const HomeStackScreen = () => {
     return (
         <HomeStack.Navigator screenOptions={{ headerShown: false }}>
@@ -48,18 +48,12 @@ export const FriendsStackScreen = () => {
 
 const ProfileStackScreen = () => {
     return (
-        <MenuStack.Navigator screenOptions={{ headerShown: false }}>
-            {/* <MenuStack.Screen
-                name="MenuContent"
-                component={MenuScreen}
-                options={{ title: 'Menu' }}
-            /> */}
-            <MenuStack.Screen
-                name="Profile"
+        <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+            <ProfileStack.Screen
+                name="ProfileContent"
                 component={ProfileScreen}
-                options={{ title: 'Trang cá nhân' }}
             />
-        </MenuStack.Navigator>
+        </ProfileStack.Navigator>
     );
 };
 
