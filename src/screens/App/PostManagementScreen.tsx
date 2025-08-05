@@ -129,7 +129,24 @@ export default function PostManagementScreen(): JSX.Element {
         {
             id: '2',
             content: 'Cuối tuần rồi! 🎉',
-            media: [],
+            media: [
+                {
+                    id: '1',
+                    type: 'image',
+                    uri: 'https://picsum.photos/400/300?random=1',
+                },
+                {
+                    id: '2',
+                    type: 'video',
+                    uri: 'https://www.w3schools.com/html/mov_bbb.mp4',
+                    thumbnail: 'https://picsum.photos/400/300?random=2',
+                }
+            ],
+            location: {
+                name: 'Quận 3, TP.HCM',
+                address: '456 Lê Văn Sỹ, Quận 3, TP.HCM',
+                coordinates: { latitude: 10.784, longitude: 106.689 },
+            },
             feelingActivity: {
                 type: 'activity',
                 emoji: '🎵',
@@ -201,13 +218,9 @@ export default function PostManagementScreen(): JSX.Element {
         const newPost: CreatePostData = {
             content: postContent,
             media: selectedMedia,
-            location: selectedLocation || undefined,
-            feelingActivity: selectedFeelingActivity || undefined,
+            location: selectedLocation || null,
+            feelingActivity: selectedFeelingActivity || null,
             privacy: postPrivacy,
-            likes: 0,
-            comments: 0,
-            shares: 0,
-            createdAt: new Date(),
             authorId: '6b890279-bcbd-4c5e-adc3-6a92e8ec90bb',
         };
 
@@ -215,7 +228,7 @@ export default function PostManagementScreen(): JSX.Element {
             const response = await createPost(session!, newPost);
             if (response.success) {
                 if (response.data) {
-					console.log("createPost response:", response.data);
+                    console.log("createPost response:", response.data);
                     setPosts([response.data, ...posts]);
                 }
             } else {
@@ -239,21 +252,21 @@ export default function PostManagementScreen(): JSX.Element {
         const updatedPosts = posts.map((post) =>
             post.id === selectedPost.id
                 ? {
-                      ...post,
-                      content: postContent,
-                      privacy: postPrivacy,
-                      media: selectedMedia,
-                      location: selectedLocation || undefined,
-                      feelingActivity: selectedFeelingActivity || undefined,
-                      backgroundColor:
-                          selectedBackground !== 'transparent'
-                              ? selectedBackground
-                              : undefined,
-                      textColor:
-                          selectedBackground !== 'transparent'
-                              ? '#ffffff'
-                              : undefined,
-                  }
+                    ...post,
+                    content: postContent,
+                    privacy: postPrivacy,
+                    media: selectedMedia,
+                    location: selectedLocation || null,
+                    feelingActivity: selectedFeelingActivity || null,
+                    backgroundColor:
+                        selectedBackground !== 'transparent'
+                            ? selectedBackground
+                            : undefined,
+                    textColor:
+                        selectedBackground !== 'transparent'
+                            ? '#ffffff'
+                            : undefined,
+                }
                 : post
         );
 
@@ -571,10 +584,10 @@ export default function PostManagementScreen(): JSX.Element {
         const updatedPosts = posts.map((post) =>
             post.id === postId
                 ? {
-                      ...post,
-                      isLiked: !post.isLiked,
-                      likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                  }
+                    ...post,
+                    isLiked: !post.isLiked,
+                    likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                }
                 : post
         );
         setPosts(updatedPosts);
@@ -785,7 +798,7 @@ export default function PostManagementScreen(): JSX.Element {
                             style={[
                                 styles.privacyOption,
                                 postPrivacy === option.value &&
-                                    styles.privacyOptionSelected,
+                                styles.privacyOptionSelected,
                             ]}
                             onPress={() => setPostPrivacy(option.value as any)}
                         >
@@ -1050,7 +1063,7 @@ export default function PostManagementScreen(): JSX.Element {
                                     style={[
                                         styles.backgroundOption,
                                         selectedBackground === bg.color &&
-                                            styles.backgroundOptionSelected,
+                                        styles.backgroundOptionSelected,
                                     ]}
                                     onPress={() => {
                                         setSelectedBackground(bg.color);

@@ -1,21 +1,22 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-
-import FriendsScreen from '@screens/App/FriendsScreen';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import FriendsRequestScreen from '@screens/App/FriendsRequestScreen';
+import FriendsScreen from '@screens/App/FriendsScreen';
 import HomeScreen from '@screens/App/HomeScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
+import React from 'react';
+import PersonalScreen from '../screens/App/PersonalScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
-import { TabParamList, FriendsStackParamList } from '../types/route';
+import { FriendsStackParamList, TabParamList } from '../types/route';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator();
 const FriendsStack = createNativeStackNavigator<FriendsStackParamList>();
 const NotificationStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
+const PersonalStack = createNativeStackNavigator();
 
 export const HomeStackScreen = () => {
     return (
@@ -35,6 +36,11 @@ export const FriendsStackScreen = () => {
             <FriendsStack.Screen
                 name="FriendsRequest"
                 component={FriendsRequestScreen}
+            />
+            <FriendsStack.Screen
+                name="PersonalScreen"
+                component={PersonalScreen}
+                options={{ headerShown: false, title: 'Personal Profile' }}
             />
         </FriendsStack.Navigator>
     );

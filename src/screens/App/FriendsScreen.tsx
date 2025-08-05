@@ -1,120 +1,117 @@
-import React from 'react';
-import {
-    StyleSheet,
-    Text,
-    View,
-    FlatList,
-    Image,
-    TouchableOpacity,
-    ScrollView,
-} from 'react-native';
+import { SUPABASE_URL } from '@/src/constants/Supabase';
+import { supabase } from '@/src/lib/supabase';
+import { AddFriendRequest } from '@/src/services/friend/friend';
+import { FriendRequest } from '@/src/types/friend';
+import { FriendsStackParamList } from '@/src/types/route';
+import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Feather } from '@expo/vector-icons';
-import { FriendsStackParamList } from '@/src/types/route';
-
+import React, { useEffect, useState } from 'react';
+import {
+    FlatList,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 type FriendsScreenNavigationProp = NativeStackNavigationProp<
     FriendsStackParamList,
     'FriendsContent'
 >;
 
-interface FriendRequest {
-    id: string;
-    name: string;
-    avatar: any;
-    mutualFriends: number;
-    timeAgo: string;
-}
-
-const mockFriendRequests: FriendRequest[] = [
-    {
-        id: '1',
-        name: 'Nguyễn Trung Kiên',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 0,
-        timeAgo: '6 ngày',
-    },
-    {
-        id: '2',
-        name: 'Trần Mạnh Tài',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 0,
-        timeAgo: '6 tuần',
-    },
-    {
-        id: '3',
-        name: 'Bao Hai',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 0,
-        timeAgo: '4 tuần',
-    },
-    {
-        id: '4',
-        name: 'Lưu Nhi',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 0,
-        timeAgo: '16 tuần',
-    },
-    {
-        id: '5',
-        name: 'Mơ Hoàng',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 2,
-        timeAgo: '23 tuần',
-    },
-    {
-        id: '6',
-        name: 'Lê Ngọc Quỳnh',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 0,
-        timeAgo: '3 tuần',
-    },
-    {
-        id: '7',
-        name: 'Phạm Văn Nam',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 1,
-        timeAgo: '2 tuần',
-    },
-    {
-        id: '8',
-        name: 'Hoàng Thị Lan',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 3,
-        timeAgo: '1 tuần',
-    },
-    {
-        id: '9',
-        name: 'Vũ Minh Đức',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 0,
-        timeAgo: '5 ngày',
-    },
-    {
-        id: '10',
-        name: 'Ngô Thị Mai',
-        avatar: require('../../../assets/avatar.png'),
-        mutualFriends: 2,
-        timeAgo: '3 ngày',
-    },
-];
-
 export default function FriendsScreen() {
     const navigation = useNavigation<FriendsScreenNavigationProp>();
+    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
 
-    const handleAcceptRequest = (id: string) => {
-        console.log('Accept');
+    const handleAcceptRequest = (request: FriendRequest) => {
+        AddFriendRequest(
+            request.requester_id,
+            request.addressee_id,
+            'accepted',
+        );
+        if (request.status === 'pending') {
+            setFriendRequests((prevRequests) =>
+                prevRequests.filter((req) => req.id !== request.id)
+            );
+
+        }
+        // console.log('Accepted friend request with ID:', request.id);
+        // console.log('Friend request accepted:', request.addressee_id);
     };
 
-    const handleDeclineRequest = (id: string) => {
-        console.log('Decline');
+    const handleDeclineRequest = (request: FriendRequest) => {
+        AddFriendRequest(
+            request.requester_id,
+            request.addressee_id,
+            'declined',
+        );
+        // console.log('Declined friend request with ID:', request.id);
     };
+    useEffect(() => {
+        const fetchFriendRequests = async () => {
+            const { data: userInfoList, error } = await supabase
+                .from('user_info')
+                .select('*')
+                .order('created_at', { ascending: false });
+            console.log("user", userInfoList);
+            if (error) {
+                console.error('Error fetching friend requests:', error);
+                return;
+            }
+            const { data: { user }, error: userError, } = await supabase.auth.getUser();
+
+            if (userError || !user) {
+                console.error('Error getting current user:', userError);
+                return;
+            }
+
+            const currentUserId = user.id;
+            const supabaseUrl = SUPABASE_URL;
+            const bucket = 'uploads';
+
+            const formattedRequests = userInfoList.map((userItem: any) => {
+                let avatarSource;
+
+                if (userItem.avatar?.startsWith('http')) {
+                    avatarSource = { uri: userItem.avatar };
+                } else if (userItem.avatar) {
+                    avatarSource = {
+                        uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${userItem.avatar}`,
+                    };
+                } else {
+                    avatarSource = require('../../../assets/avatar.png');
+                }
+
+                return {
+                    id: userItem.id,
+                    createdAt: userItem.created_at || new Date().toISOString(),
+                    requester_id: userItem.id,
+                    addressee_id: currentUserId,
+                    fullname: userItem.full_name,
+                    avatar: avatarSource,
+                    mutualFriends: userItem.mutual_friends || 0,
+                    timeAgo: userItem.time_ago || 'Vừa xong',
+                    status: 'pending' as 'pending',
+
+                };
+            });
+
+            setFriendRequests(formattedRequests);
+        };
+
+        fetchFriendRequests();
+    }, []);
 
     const renderFriendRequest = ({ item }: { item: FriendRequest }) => (
         <View style={styles.requestItem}>
-            <Image source={item.avatar} style={styles.avatar} />
+            <TouchableOpacity onPress={() => navigation.navigate('PersonalScreen', { userId: item.requester_id })}>
+                <Image source={item.avatar} style={styles.avatar} />
+            
+            </TouchableOpacity>
             <View style={styles.requestInfo}>
-                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.name}>{item.fullname}</Text>
                 {item.mutualFriends > 0 && (
                     <View style={styles.mutualFriendsContainer}>
                         <View style={styles.mutualFriendsIcon}>
@@ -131,19 +128,19 @@ export default function FriendsScreen() {
                 <View style={styles.actionButtons}>
                     <TouchableOpacity
                         style={styles.acceptButton}
-                        onPress={() => handleAcceptRequest(item.id)}
+                        onPress={() => handleAcceptRequest(item)}
                     >
                         <Text style={styles.acceptButtonText}>Xác nhận</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.declineButton}
-                        onPress={() => handleDeclineRequest(item.id)}
+                        onPress={() => handleDeclineRequest(item)}
                     >
                         <Text style={styles.declineButtonText}>Xóa</Text>
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </View >
     );
 
     return (
@@ -158,7 +155,7 @@ export default function FriendsScreen() {
             </View>
 
             <FlatList
-                data={mockFriendRequests}
+                data={friendRequests}
                 renderItem={renderFriendRequest}
                 keyExtractor={(item) => item.id}
                 scrollEnabled={false}

@@ -82,12 +82,12 @@ export default function NotificationsScreen() {
     const renderNotification = ({ item }: { item: NotificationItem }) => (
         <TouchableOpacity style={styles.notificationItem}>
             <View style={styles.avatarContainer}>
-                <Image 
-                    source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar} 
-                    style={styles.avatar} 
+                <Image
+                    source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
+                    style={styles.avatar}
                 />
             </View>
-            
+
             <View style={styles.contentContainer}>
                 <Text style={styles.title} numberOfLines={1}>
                     {item.title}
@@ -97,7 +97,7 @@ export default function NotificationsScreen() {
                 </Text>
                 <Text style={styles.time}>{item.time}</Text>
             </View>
-            
+
             <TouchableOpacity style={styles.moreButton}>
                 <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
             </TouchableOpacity>

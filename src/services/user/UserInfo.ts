@@ -2,15 +2,15 @@ import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/src/lib/supabase';
 import { UpdateUserInfo, UserInfo } from '@/src/types/auth';
-import * as FileSystem from 'expo-file-system';
-import { decode } from 'base64-arraybuffer';
 import { ServiceResponse } from '@/src/types/response';
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system';
 
 export const UpdateUserProfile = async (
     userId: string,
-    formData: UpdateUserInfo
+    formData: Partial<UpdateUserInfo>
 ): Promise<ServiceResponse<void>> => {
-    const { fullName, address, gender, birthDate, phone } = formData;
+    const { fullName, address, gender, birthDate, phone, avatar } = formData;
     const { error } = await supabase.from('user_info').upsert(
         {
             id: userId,
@@ -18,6 +18,7 @@ export const UpdateUserProfile = async (
             address,
             phone,
             gender,
+            avatar,
             yob: birthDate ? birthDate.toISOString() : null,
         },
         { onConflict: 'id' }

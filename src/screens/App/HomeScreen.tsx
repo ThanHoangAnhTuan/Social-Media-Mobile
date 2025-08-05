@@ -1,35 +1,11 @@
 import {
-    Feather,
-    MaterialIcons,
-    Ionicons,
-    FontAwesome5,
-} from '@expo/vector-icons';
-import React, {
-    JSX,
-    useContext,
-    useState,
-    useEffect,
-    useCallback,
-} from 'react';
-import {
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ScrollView,
-    TextInput,
-    Modal,
-    Alert,
-    FlatList,
-    Share,
-    Dimensions,
-    Platform,
-} from 'react-native';
-import { Session } from '@supabase/supabase-js';
-import { AuthContext } from '@context/AuthContext';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
+    ACTIVITIES,
+    BACKGROUND_COLORS,
+    FEELINGS,
+    PRIVACY_OPTIONS,
+} from '@/src/constants/Post';
+import { createPost } from '@/src/services/post/post';
+import { getUserAvatarUrl } from '@/src/services/user/UserInfo';
 import {
     Comment,
     CreatePostData,
@@ -38,15 +14,36 @@ import {
     MediaItem,
     Post,
 } from '@/src/types/post';
+import { AuthContext } from '@context/AuthContext';
 import {
-    ACTIVITIES,
-    BACKGROUND_COLORS,
-    FEELINGS,
-    PRIVACY_OPTIONS,
-} from '@/src/constants/Post';
-import { createPost } from '@/src/services/post/post';
+    Feather,
+    Ionicons
+} from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { getUserAvatarUrl } from '@/src/services/user/UserInfo';
+import { Session } from '@supabase/supabase-js';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import React, {
+    JSX,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
+} from 'react';
+import {
+    Alert,
+    Dimensions,
+    FlatList,
+    Image,
+    Modal,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -271,21 +268,21 @@ export default function HomeScreen(): JSX.Element {
         const updatedPosts = posts.map((post) =>
             post.id === selectedPost.id
                 ? {
-                      ...post,
-                      content: postContent,
-                      privacy: postPrivacy,
-                      media: selectedMedia,
-                      location: selectedLocation || null,
-                      feelingActivity: selectedFeelingActivity || null,
-                      backgroundColor:
-                          selectedBackground !== 'transparent'
-                              ? selectedBackground
-                              : undefined,
-                      textColor:
-                          selectedBackground !== 'transparent'
-                              ? '#ffffff'
-                              : undefined,
-                  }
+                    ...post,
+                    content: postContent,
+                    privacy: postPrivacy,
+                    media: selectedMedia,
+                    location: selectedLocation || null,
+                    feelingActivity: selectedFeelingActivity || null,
+                    backgroundColor:
+                        selectedBackground !== 'transparent'
+                            ? selectedBackground
+                            : undefined,
+                    textColor:
+                        selectedBackground !== 'transparent'
+                            ? '#ffffff'
+                            : undefined,
+                }
                 : post
         );
 
@@ -611,10 +608,10 @@ export default function HomeScreen(): JSX.Element {
         const updatedPosts = posts.map((post) =>
             post.id === postId
                 ? {
-                      ...post,
-                      isLiked: !post.isLiked,
-                      likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                  }
+                    ...post,
+                    isLiked: !post.isLiked,
+                    likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                }
                 : post
         );
         setPosts(updatedPosts);
@@ -825,7 +822,7 @@ export default function HomeScreen(): JSX.Element {
                             style={[
                                 styles.privacyOption,
                                 postPrivacy === option.value &&
-                                    styles.privacyOptionSelected,
+                                styles.privacyOptionSelected,
                             ]}
                             onPress={() => setPostPrivacy(option.value as any)}
                         >
@@ -862,7 +859,7 @@ export default function HomeScreen(): JSX.Element {
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.ImageButton}
-                    // onPress={() => setShowCreateModal(true)}
+                // onPress={() => setShowCreateModal(true)}
                 >
                     <Ionicons name="image" size={24} color="#45b7d1" />
                 </TouchableOpacity>
@@ -1101,7 +1098,7 @@ export default function HomeScreen(): JSX.Element {
                                     style={[
                                         styles.backgroundOption,
                                         selectedBackground === bg.color &&
-                                            styles.backgroundOptionSelected,
+                                        styles.backgroundOptionSelected,
                                     ]}
                                     onPress={() => {
                                         setSelectedBackground(bg.color);

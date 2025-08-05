@@ -4,7 +4,7 @@ export interface UpdateUserInfo {
     phone: string | null;
     address: string | null;
     gender: string | null;
-    avatar: string | null;
+    avatar?: string | null;
     birthDate: Date | null;
 }
 

@@ -16,9 +16,13 @@ export type TabParamList = {
     Friends: undefined;
     Notifications: undefined;
     Profile: undefined;
+    PersonalScreen: { userId: string };
 };
 
 export type FriendsStackParamList = {
     FriendsContent: undefined;
     FriendsRequest: undefined;
+    PersonalScreen: { userId: string };
 };
+
+

@@ -344,7 +344,7 @@ const decrementLikeCount = async (
         };
     }
 };
-
+//hàm tăng số lượng comment
 const incrementCommentCount = async (
     postId: number
 ): Promise<ServiceResponse<Post>> => {
@@ -367,7 +367,7 @@ const incrementCommentCount = async (
         };
     }
 };
-
+//hàm giảm số lượng comment
 const decrementCommentCount = async (
     postId: number
 ): Promise<ServiceResponse<Post>> => {
@@ -390,6 +390,7 @@ const decrementCommentCount = async (
     }
 };
 
+//hàm tăng số lượng share
 const incrementShareCount = async (
     postId: number
 ): Promise<ServiceResponse<Post>> => {
@@ -413,6 +414,7 @@ const incrementShareCount = async (
     }
 };
 
+//hàm giảm số lượng share
 const decrementShareCount = async (
     postId: number
 ): Promise<ServiceResponse<Post>> => {
