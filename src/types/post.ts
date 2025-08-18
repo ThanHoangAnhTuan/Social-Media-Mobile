@@ -1,10 +1,9 @@
 export interface UpdatePostData {
     content: string;
-    media: MediaItem[];
-    location: LocationData | null;
-    feelingActivity: FeelingActivity | null;
     privacy: 'public' | 'friends' | 'private';
-    authorId: string;
+    media: MediaItem[]; // Required - luôn cần gửi để có thể cập nhật/xóa
+    location?: LocationData | null; // Optional - undefined nghĩa là không thay đổi, null nghĩa là xóa
+    feelingActivity?: FeelingActivity | null; // Optional - tương tự location
 }
 
 export interface PostsFilterOptions {

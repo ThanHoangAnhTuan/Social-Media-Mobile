@@ -56,6 +56,7 @@ export const UpdateUserAvatar = async (
             }
         }
         const random = new Date().getTime();
+        console.log('image URI', imageUri);
 
         let fileName = `avatars/${random}.png`;
         const fileBase64 = await FileSystem.readAsStringAsync(imageUri, {
@@ -93,7 +94,7 @@ export const UpdateUserAvatar = async (
         }
 
         return {
-            data: getSupabaseAvatarUrl(data?.path ?? '') ?? '',
+            data: getUserAvatar(data?.path ?? '') ?? '',
             success: true,
         };
     } catch (error) {
@@ -134,44 +135,46 @@ export const GetUserProfile = async (
         address: data?.address || null,
         gender: data?.gender || null,
         birthDate: data?.yob ? new Date(data.yob) : null,
-        avatar:
-            getSupabaseAvatarUrl(data?.avatar) ||
-            session.user.user_metadata?.avatar_url ||
-            null,
+        avatar: getUserAvatar(data?.avatar),
     };
-
     return { success: true, data: userInfo };
 };
 
-export const getSupabaseAvatarUrl = (
-    filePath: string | null
-): string | null => {
+export const getUserAvatar = (filePath: string | null): string | null => {
     if (!filePath) return null;
+    if (filePath.startsWith('http')) return filePath;
     return `https://arrsejmhxfisnnhybfma.supabase.co/storage/v1/object/public/uploads/${filePath}`;
 };
 
-export const getUserAvatarUrl = async (
-    session: Session
-): Promise<ServiceResponse<string>> => {
-    const userId = session?.user?.id;
-    if (!userId) return { success: false, error: 'No user ID provided' };
+// export const getSupabaseAvatarUrl = (
+//     filePath: string | null
+// ): string | null => {
+//     if (!filePath) return null;
+//     return `https://arrsejmhxfisnnhybfma.supabase.co/storage/v1/object/public/uploads/${filePath}`;
+// };
 
-    const { data, error: errorInfo } = await supabase
-        .from('user_info')
-        .select('avatar')
-        .eq('id', userId)
-        .maybeSingle();
-    if (errorInfo) {
-        return {
-            success: false,
-            error: 'Error fetching user info: ' + errorInfo.message,
-        };
-    }
-    return {
-        success: true,
-        data:
-            getSupabaseAvatarUrl(data?.avatar) ||
-            session.user.user_metadata?.avatar_url ||
-            'https://ui-avatars.com/api/?name=' + (session?.user?.email || 'U'),
-    };
-};
+// export const getUserAvatarUrl = async (
+//     session: Session
+// ): Promise<ServiceResponse<string>> => {
+//     const userId = session?.user?.id;
+//     if (!userId) return { success: false, error: 'No user ID provided' };
+
+//     const { data, error: errorInfo } = await supabase
+//         .from('user_info')
+//         .select('avatar')
+//         .eq('id', userId)
+//         .maybeSingle();
+//     if (errorInfo) {
+//         return {
+//             success: false,
+//             error: 'Error fetching user info: ' + errorInfo.message,
+//         };
+//     }
+//     return {
+//         success: true,
+//         data:
+//             getUserAvatar(data?.avatar) ||
+//             session.user.user_metadata?.avatar_url ||
+//             'https://ui-avatars.com/api/?name=' + (session?.user?.email || 'U'),
+//     };
+// };

@@ -33,6 +33,7 @@ import * as Location from 'expo-location';
 import {
     Comment,
     CreatePostData,
+    UpdatePostData,
     FeelingActivity,
     LocationData,
     MediaItem,
@@ -44,9 +45,9 @@ import {
     FEELINGS,
     PRIVACY_OPTIONS,
 } from '@/src/constants/Post';
-import { createPost } from '@/src/services/post/post';
+import { createPost, deletePost, getPostsByUserId, updatePost } from '@/src/services/post/post';
 import { useFocusEffect } from '@react-navigation/native';
-import { getUserAvatarUrl } from '@/src/services/user/UserInfo';
+import { GetUserProfile } from '@/src/services/user/UserInfo';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -81,16 +82,16 @@ export default function HomeScreen(): JSX.Element {
         useState<string>('transparent');
 
     const [avatar, setAvatar] = useState<string>('');
-    const fetchUserAvatar = async (session: Session) => {
+    const fetchUserProfile = async (session: Session) => {
         try {
             setLoading(true);
-            const response = await getUserAvatarUrl(session);
-            const avatarData = response.data;
-            if (!avatarData) {
-                throw new Error('Không tìm thấy thông tin người dùng.');
+            const response = await GetUserProfile(session);
+            if (!response.success) {
+                console.error('Failed to fetch user profile:', response.error);
+                return;
             }
-            setAvatar(avatarData);
-            console.log('Fetched user profile:', avatarData);
+            setAvatar(response.data?.avatar as string);
+            // console.log('Fetched user profile:', response.data);
         } catch (error) {
             console.error('Error fetching user profile:', error);
         } finally {
@@ -101,7 +102,7 @@ export default function HomeScreen(): JSX.Element {
     useFocusEffect(
         useCallback(() => {
             if (session) {
-                fetchUserAvatar(session);
+                fetchUserProfile(session);
             }
         }, [session])
     );
@@ -187,9 +188,15 @@ export default function HomeScreen(): JSX.Element {
     ];
 
     useEffect(() => {
-        loadPosts();
         requestPermissions();
     }, []);
+
+    useEffect(() => {
+        if (session) {
+            loadPosts();
+            requestPermissions();
+        }
+    }, [session]);
 
     const requestPermissions = async () => {
         const { status: mediaStatus } =
@@ -208,14 +215,44 @@ export default function HomeScreen(): JSX.Element {
     };
 
     const loadPosts = async () => {
+        if (!session) {
+            console.log('No session available');
+            return;
+        }
+
         setLoading(true);
         try {
-            setTimeout(() => {
-                setPosts(mockPosts);
-                setLoading(false);
-            }, 1000);
+            // Lấy posts của user hiện tại
+            const response = await getPostsByUserId(session.user.id);
+            // console.log(JSON.stringify(response, null, 2));
+
+            let userPosts: Post[] = [];
+            userPosts = response.success && response.data ? response.data : [];
+
+            const allPosts = [...userPosts, ...mockPosts];
+            // console.log('All posts:', JSON.stringify(allPosts, null, 2));
+
+            // allPosts.sort(
+            //     (a, b) =>
+            //         new Date(b.created_at).getTime() -
+            //         new Date(a.created_at).getTime()
+            // );
+
+            setPosts(allPosts);
+            // console.log(
+            //     'Loaded posts successfully:',
+            //     allPosts.length,
+            //     'posts (',
+            //     userPosts.length,
+            //     'real +',
+            //     mockPosts.length,
+            //     'mock)'
+            // );
         } catch (error) {
             console.error('Error loading posts:', error);
+            // Fallback to mock posts if error
+            setPosts(mockPosts);
+        } finally {
             setLoading(false);
         }
     };
@@ -230,7 +267,17 @@ export default function HomeScreen(): JSX.Element {
     };
 
     const handleCreatePost = async () => {
-        if (!postContent.trim() && selectedMedia.length === 0) {
+        console.log('Creating post with data:', {
+            content: postContent,
+            media: selectedMedia,
+            location: selectedLocation,
+            feelingActivity: selectedFeelingActivity,
+            privacy: postPrivacy,
+        });
+
+        console.log(postContent.trim(), selectedMedia.length === 0);
+
+        if (postContent.trim() === '' && selectedMedia.length === 0) {
             Alert.alert('Lỗi', 'Vui lòng nhập nội dung hoặc chọn ảnh/video');
             return;
         }
@@ -247,18 +294,17 @@ export default function HomeScreen(): JSX.Element {
         try {
             const response = await createPost(session!, newPost);
             if (response.success) {
-                if (response.data) {
-                    setPosts([response.data, ...posts]);
-                }
+                // Reload posts from server to get updated list
+                await loadPosts();
+                resetForm();
+                setShowCreateModal(false);
+                Alert.alert('Thành công', 'Đã tạo bài viết mới');
             } else {
                 Alert.alert('Lỗi', response.error || 'Không thể tạo bài viết');
             }
         } catch (error) {
             Alert.alert('Lỗi', 'Không thể tạo bài viết. Vui lòng thử lại sau.');
         }
-        resetForm();
-        setShowCreateModal(false);
-        Alert.alert('Thành công', 'Đã tạo bài viết mới');
     };
 
     const handleEditPost = async () => {
@@ -268,32 +314,47 @@ export default function HomeScreen(): JSX.Element {
         )
             return;
 
-        const updatedPosts = posts.map((post) =>
-            post.id === selectedPost.id
-                ? {
-                      ...post,
-                      content: postContent,
-                      privacy: postPrivacy,
-                      media: selectedMedia,
-                      location: selectedLocation || null,
-                      feelingActivity: selectedFeelingActivity || null,
-                      backgroundColor:
-                          selectedBackground !== 'transparent'
-                              ? selectedBackground
-                              : undefined,
-                      textColor:
-                          selectedBackground !== 'transparent'
-                              ? '#ffffff'
-                              : undefined,
-                  }
-                : post
-        );
+        const updateData: UpdatePostData = {
+            content: postContent,
+            privacy: postPrivacy,
+            media: selectedMedia, // Luôn gửi media, kể cả khi empty array để xóa ảnh
+        };
 
-        setPosts(updatedPosts);
-        setShowEditModal(false);
-        setSelectedPost(null);
-        resetForm();
-        Alert.alert('Thành công', 'Đã cập nhật bài viết');
+        // Chỉ thêm location nếu có thay đổi hoặc cần xóa
+        if (selectedLocation !== undefined) {
+            updateData.location = selectedLocation;
+        }
+
+        // Chỉ thêm feelingActivity nếu có thay đổi hoặc cần xóa
+        if (selectedFeelingActivity !== undefined) {
+            updateData.feelingActivity = selectedFeelingActivity;
+        }
+
+        try {
+            const response = await updatePost(
+                selectedPost.id,
+                updateData,
+                session!
+            );
+            if (response.success) {
+                // Reload posts to get updated data
+                await loadPosts();
+                setShowEditModal(false);
+                setSelectedPost(null);
+                resetForm();
+                Alert.alert('Thành công', 'Đã cập nhật bài viết');
+            } else {
+                Alert.alert(
+                    'Lỗi',
+                    response.error || 'Không thể cập nhật bài viết'
+                );
+            }
+        } catch (error) {
+            Alert.alert(
+                'Lỗi',
+                'Không thể cập nhật bài viết. Vui lòng thử lại sau.'
+            );
+        }
     };
 
     const handlePickMedia = async (type: 'camera' | 'library') => {
@@ -378,10 +439,12 @@ export default function HomeScreen(): JSX.Element {
             } else if (media.length === 2) {
                 itemStyle = styles.doubleMedia;
             } else if (media.length === 3) {
-                itemStyle =
-                    index === 0
-                        ? styles.tripleMediaLarge
-                        : styles.tripleMediaSmall;
+                // Layout cho 3 ảnh: 1 ảnh lớn bên trái, 2 ảnh nhỏ bên phải
+                if (index === 0) {
+                    itemStyle = styles.tripleMediaMain;
+                } else {
+                    itemStyle = styles.tripleMediaSide;
+                }
             } else {
                 itemStyle = styles.quadMedia;
             }
@@ -413,6 +476,58 @@ export default function HomeScreen(): JSX.Element {
                 </View>
             );
         };
+
+        // Render layout cho 3 ảnh
+        if (media.length === 3) {
+            return (
+                <View style={styles.mediaContainer}>
+                    {/* Ảnh đầu tiên chiếm toàn bộ chiều cao bên trái */}
+                    <View style={[styles.mediaItem, styles.tripleMediaMain]}>
+                        <Image
+                            source={{ uri: media[0].uri }}
+                            style={styles.mediaImage}
+                            resizeMode="cover"
+                        />
+                        {media[0].type === 'video' && (
+                            <View style={styles.videoOverlay}>
+                                <Ionicons
+                                    name="play-circle"
+                                    size={40}
+                                    color="rgba(255,255,255,0.8)"
+                                />
+                            </View>
+                        )}
+                    </View>
+                    {/* Cột bên phải chứa 2 ảnh còn lại */}
+                    <View style={styles.tripleMediaColumn}>
+                        {media.slice(1, 3).map((item, index) => (
+                            <View
+                                key={item.id}
+                                style={[
+                                    styles.mediaItem,
+                                    styles.tripleMediaSide,
+                                ]}
+                            >
+                                <Image
+                                    source={{ uri: item.uri }}
+                                    style={styles.mediaImage}
+                                    resizeMode="cover"
+                                />
+                                {item.type === 'video' && (
+                                    <View style={styles.videoOverlay}>
+                                        <Ionicons
+                                            name="play-circle"
+                                            size={40}
+                                            color="rgba(255,255,255,0.8)"
+                                        />
+                                    </View>
+                                )}
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            );
+        }
 
         return (
             <View style={styles.mediaContainer}>
@@ -489,9 +604,9 @@ export default function HomeScreen(): JSX.Element {
                                 )}
                             </View>
                             <View style={styles.postMeta}>
-                                <Text style={[styles.postDate]}>
+                                {/* <Text style={[styles.postDate]}>
                                     {formatDate(post.createdAt)}
-                                </Text>
+                                </Text> */}
                                 <View style={styles.privacyIndicator}>
                                     <Feather
                                         name={privacyInfo?.icon as any}
@@ -511,18 +626,27 @@ export default function HomeScreen(): JSX.Element {
                         </View>
                     </View>
                     <View style={styles.postActions}>
-                        <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => openEditModal(post)}
-                        >
-                            <Feather name="edit-2" size={16} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => handleDeletePost(post.id)}
-                        >
-                            <Feather name="trash-2" size={16} color="#ef4444" />
-                        </TouchableOpacity>
+                        {/* Chỉ hiển thị nút Edit và Delete nếu là bài viết của user hiện tại */}
+                        {session?.user?.id === post.author.id && (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.actionButton}
+                                    onPress={() => openEditModal(post)}
+                                >
+                                    <Feather name="edit-2" size={16} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.actionButton}
+                                    onPress={() => handleDeletePost(post.id)}
+                                >
+                                    <Feather
+                                        name="trash-2"
+                                        size={16}
+                                        color="#ef4444"
+                                    />
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 </View>
 
@@ -593,15 +717,33 @@ export default function HomeScreen(): JSX.Element {
         );
     };
 
-    const handleDeletePost = (postId: string) => {
+    const handleDeletePost = async (postId: string) => {
         Alert.alert('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa bài viết này?', [
             { text: 'Hủy', style: 'cancel' },
             {
                 text: 'Xóa',
                 style: 'destructive',
-                onPress: () => {
-                    setPosts(posts.filter((post) => post.id !== postId));
-                    Alert.alert('Thành công', 'Đã xóa bài viết');
+                onPress: async () => {
+                    try {
+                        const response = await deletePost(postId, session!);
+                        if (response.success) {
+                            // Remove the post from local state
+                            setPosts(
+                                posts.filter((post) => post.id !== postId)
+                            );
+                            Alert.alert('Thành công', 'Đã xóa bài viết');
+                        } else {
+                            Alert.alert(
+                                'Lỗi',
+                                response.error || 'Không thể xóa bài viết'
+                            );
+                        }
+                    } catch (error) {
+                        Alert.alert(
+                            'Lỗi',
+                            'Không thể xóa bài viết. Vui lòng thử lại sau.'
+                        );
+                    }
                 },
             },
         ]);
@@ -683,15 +825,17 @@ export default function HomeScreen(): JSX.Element {
         setPosts(updatedPosts);
     };
 
-    const formatDate = (date: Date) => {
-        return date.toLocaleDateString('vi-VN', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
+    // const formatDate = (date: Date) => {
+    //     console.log('Formatting date:', date);
+
+    //     return date.toLocaleDateString('vi-VN', {
+    //         day: '2-digit',
+    //         month: '2-digit',
+    //         year: 'numeric',
+    //         hour: '2-digit',
+    //         minute: '2-digit',
+    //     });
+    // };
 
     const renderComment = ({ item: comment }: { item: Comment }) => (
         <View style={styles.commentItem}>
@@ -706,9 +850,9 @@ export default function HomeScreen(): JSX.Element {
                     </Text>
                     <Text style={styles.commentText}>{comment.content}</Text>
                 </View>
-                <Text style={styles.commentDate}>
+                {/* <Text style={styles.commentDate}>
                     {formatDate(comment.createdAt)}
-                </Text>
+                </Text> */}
             </View>
         </View>
     );
@@ -1352,6 +1496,19 @@ const styles = StyleSheet.create({
         width: '32%',
         height: 148,
         marginBottom: 4,
+    },
+    tripleMediaMain: {
+        width: '66%',
+        height: 300,
+    },
+    tripleMediaColumn: {
+        width: '32%',
+        flexDirection: 'column',
+        gap: 2,
+    },
+    tripleMediaSide: {
+        width: '100%',
+        height: 148,
     },
     quadMedia: {
         width: '49.5%',
