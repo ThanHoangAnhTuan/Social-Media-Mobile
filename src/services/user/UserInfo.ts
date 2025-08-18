@@ -57,6 +57,7 @@ export const UpdateUserAvatar = async (
             }
         }
         const random = new Date().getTime();
+        console.log('image URI', imageUri);
 
         let fileName = `avatars/${random}.png`;
         const fileBase64 = await FileSystem.readAsStringAsync(imageUri, {
@@ -94,7 +95,7 @@ export const UpdateUserAvatar = async (
         }
 
         return {
-            data: getSupabaseAvatarUrl(data?.path ?? '') ?? '',
+            data: getUserAvatar(data?.path ?? '') ?? '',
             success: true,
         };
     } catch (error) {
@@ -175,7 +176,7 @@ export const UpdateUserCoverPhoto = async (
         }
 
         return {
-            data: getSupabaseAvatarUrl(data?.path ?? '') ?? '',
+            data: getUserAvatar(data?.path ?? '') ?? '',
             success: true,
         };
     } catch (error) {
@@ -216,13 +217,9 @@ export const GetUserProfile = async (
         address: data?.address || null,
         gender: data?.gender || null,
         birthDate: data?.yob ? new Date(data.yob) : null,
-        avatar:
-            getSupabaseAvatarUrl(data?.avatar) ||
-            session.user.user_metadata?.avatar_url ||
-            null,
-        coverPhoto: getSupabaseAvatarUrl(data?.cover_photo) || null,
+        avatar: getUserAvatar(data?.avatar),
+        coverPhoto: getUserAvatar(data?.cover_photo),
     };
-
     return { success: true, data: userInfo };
 };
 
@@ -233,81 +230,88 @@ export const GetUserProfileById = async (
         return { success: false, error: 'No user ID provided' };
     }
 
-    try {
-        // Get user info from user_info table
-        const { data: userInfoData, error: userInfoError } = await supabase
-            .from('user_info')
-            .select('*')
-            .eq('id', userId)
-            .maybeSingle();
+    // Get user_info from our custom table
+    const { data: userInfoData, error: userInfoError } = await supabase
+        .from('user_info')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-        if (userInfoError) {
-            console.error('Error fetching user info:', userInfoError);
-        }
-
-        // Get basic user data from auth.users table (if accessible)
-        // Note: This might not work depending on RLS policies
-        const { data: authData, error: authError } = await supabase
-            .from('profiles') // Assuming you have a profiles table or view
-            .select('email, full_name, avatar_url')
-            .eq('id', userId)
-            .maybeSingle();
-
-        if (authError) {
-            console.error('Error fetching auth data:', authError);
-        }
-
-        const userInfo: UserInfo = {
-            id: userId,
-            email: authData?.email || null,
-            phone: userInfoData?.phone || null,
-            fullName: userInfoData?.full_name || authData?.full_name || 'Người dùng',
-            address: userInfoData?.address || null,
-            gender: userInfoData?.gender || null,
-            birthDate: userInfoData?.yob ? new Date(userInfoData.yob) : null,
-            avatar: getSupabaseAvatarUrl(userInfoData?.avatar) || authData?.avatar_url || null,
-            coverPhoto: getSupabaseAvatarUrl(userInfoData?.cover_photo) || null,
-        };
-
-        return { success: true, data: userInfo };
-    } catch (error) {
-        console.error('Error in GetUserProfileById:', error);
+    if (userInfoError) {
         return {
             success: false,
-            error: 'Failed to fetch user profile',
+            error: 'Error fetching user info: ' + userInfoError.message,
         };
     }
+
+    // If no data found in user_info table, return minimal profile
+    if (!userInfoData) {
+        return {
+            success: true,
+            data: {
+                id: userId,
+                email: null,
+                phone: null,
+                fullName: 'Người dùng',
+                address: null,
+                gender: null,
+                birthDate: null,
+                avatar: null,
+                coverPhoto: null,
+            }
+        };
+    }
+
+    const userInfo: UserInfo = {
+        id: userId,
+        email: null, // We don't expose email for privacy
+        phone: userInfoData.phone || null,
+        fullName: userInfoData.full_name || 'Người dùng',
+        address: userInfoData.address || null,
+        gender: userInfoData.gender || null,
+        birthDate: userInfoData.yob ? new Date(userInfoData.yob) : null,
+        avatar: getUserAvatar(userInfoData.avatar),
+        coverPhoto: getUserAvatar(userInfoData.cover_photo),
+    };
+    
+    return { success: true, data: userInfo };
 };
 
-export const getSupabaseAvatarUrl = (
-    filePath: string | null
-): string | null => {
+export const getUserAvatar = (filePath: string | null): string | null => {
     if (!filePath) return null;
+    if (filePath.startsWith('http')) return filePath;
     return `https://arrsejmhxfisnnhybfma.supabase.co/storage/v1/object/public/uploads/${filePath}`;
 };
 
-export const getUserAvatarUrl = async (
-    session: Session
-): Promise<ServiceResponse<string>> => {
-    const userId = session?.user?.id;
-    if (!userId) return { success: false, error: 'No user ID provided' };
+// export const getSupabaseAvatarUrl = (
+//     filePath: string | null
+// ): string | null => {
+//     if (!filePath) return null;
+//     return `https://arrsejmhxfisnnhybfma.supabase.co/storage/v1/object/public/uploads/${filePath}`;
+// };
 
-    const { data, error: errorInfo } = await supabase
-        .from('user_info')
-        .select('avatar')
-        .eq('id', userId)
-        .maybeSingle();
-    if (errorInfo) {
-        return {
-            success: false,
-            error: 'Error fetching user info: ' + errorInfo.message,
-        };
-    }
-    return {
-        success: true,
-        data:
-            getSupabaseAvatarUrl(data?.avatar) ||
-            session.user.user_metadata?.avatar_url ||
-            'https://ui-avatars.com/api/?name=' + (session?.user?.email || 'U'),
-    };
-};
+// export const getUserAvatarUrl = async (
+//     session: Session
+// ): Promise<ServiceResponse<string>> => {
+//     const userId = session?.user?.id;
+//     if (!userId) return { success: false, error: 'No user ID provided' };
+
+//     const { data, error: errorInfo } = await supabase
+//         .from('user_info')
+//         .select('avatar')
+//         .eq('id', userId)
+//         .maybeSingle();
+//     if (errorInfo) {
+//         return {
+//             success: false,
+//             error: 'Error fetching user info: ' + errorInfo.message,
+//         };
+//     }
+//     return {
+//         success: true,
+//         data:
+//             getUserAvatar(data?.avatar) ||
+//             session.user.user_metadata?.avatar_url ||
+//             'https://ui-avatars.com/api/?name=' + (session?.user?.email || 'U'),
+//     };
+// };

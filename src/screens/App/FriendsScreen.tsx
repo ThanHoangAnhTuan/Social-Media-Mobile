@@ -13,6 +13,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -25,6 +26,9 @@ export default function FriendsScreen() {
     const navigation = useNavigation<FriendsScreenNavigationProp>();
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
     const [currentUserId, setCurrentUserId] = useState<string>('');
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState<boolean>(false);
 
     const handleAcceptRequest = async (request: FriendRequest) => {
         console.log("Accepting friend request:", request.id);
@@ -116,6 +120,68 @@ export default function FriendsScreen() {
         console.log("Number of friend requests found:", formattedRequests.length);
         setFriendRequests(formattedRequests);
     };
+
+    const searchUsers = async (query: string) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            setIsSearching(false);
+            return;
+        }
+
+        setIsSearching(true);
+        const supabaseUrl = SUPABASE_URL;
+        const bucket = 'uploads';
+
+        try {
+            const { data: users, error } = await supabase
+                .from('user_info')
+                .select('id, full_name, avatar')
+                .ilike('full_name', `%${query}%`)
+                .limit(10);
+
+            if (error) {
+                console.error('Error searching users:', error);
+                setSearchResults([]);
+                return;
+            }
+
+            const formattedUsers = users.map((user: any) => {
+                let avatarSource;
+
+                if (user.avatar?.startsWith('http')) {
+                    avatarSource = { uri: user.avatar };
+                } else if (user.avatar) {
+                    avatarSource = {
+                        uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${user.avatar}`,
+                    };
+                } else {
+                    avatarSource = require('../../../assets/avatar.png');
+                }
+
+                return {
+                    id: user.id,
+                    fullname: user.full_name,
+                    avatar: avatarSource,
+                };
+            });
+
+            setSearchResults(formattedUsers);
+        } catch (error) {
+            console.error('Error searching users:', error);
+            setSearchResults([]);
+        }
+    };
+
+    const handleSearchChange = (text: string) => {
+        setSearchQuery(text);
+        searchUsers(text);
+    };
+
+    const clearSearch = () => {
+        setSearchQuery('');
+        setSearchResults([]);
+        setIsSearching(false);
+    };
     useFocusEffect(
         useCallback(() => {
             fetchFriendRequests();
@@ -161,24 +227,81 @@ export default function FriendsScreen() {
         </View >
     );
 
+    const renderSearchResult = ({ item }: { item: any }) => (
+        <TouchableOpacity 
+            style={styles.searchResultItem}
+            onPress={() => {
+                navigation.navigate('PersonalContent', { userId: item.id });
+                clearSearch();
+            }}
+        >
+            <Image source={item.avatar} style={styles.searchAvatar} />
+            <View style={styles.searchUserInfo}>
+                <Text style={styles.searchUserName}>{item.fullname}</Text>
+            </View>
+        </TouchableOpacity>
+    );
+
     return (
         <ScrollView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Lời mời kết bạn</Text>
-                <TouchableOpacity
-                    onPress={() => navigation.navigate('FriendsRequest', { currentUserId, friendRequests })}
-                >
-                    <Text style={styles.seeAllText}>Xem tất cả</Text>
-                </TouchableOpacity>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+                <View style={styles.searchBar}>
+                    <Feather name="search" size={20} color="#6b7280" style={styles.searchIcon} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Tìm kiếm bạn bè..."
+                        value={searchQuery}
+                        onChangeText={handleSearchChange}
+                        placeholderTextColor="#6b7280"
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+                            <Feather name="x" size={20} color="#6b7280" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
-            <FlatList
-                data={friendRequests}
-                renderItem={renderFriendRequest}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                showsVerticalScrollIndicator={false}
-            />
+            {/* Search Results */}
+            {isSearching && searchQuery.length > 0 && (
+                <View style={styles.searchResultsContainer}>
+                    <Text style={styles.searchResultsTitle}>Kết quả tìm kiếm</Text>
+                    {searchResults.length > 0 ? (
+                        <FlatList
+                            data={searchResults}
+                            renderItem={renderSearchResult}
+                            keyExtractor={(item) => item.id}
+                            scrollEnabled={false}
+                            showsVerticalScrollIndicator={false}
+                        />
+                    ) : (
+                        <Text style={styles.noResultsText}>Không tìm thấy kết quả nào</Text>
+                    )}
+                </View>
+            )}
+
+            {/* Friend Requests Section - Only show when not searching */}
+            {!isSearching && (
+                <>
+                    <View style={styles.header}>
+                        <Text style={styles.headerTitle}>Lời mời kết bạn</Text>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('FriendsRequest', { currentUserId, friendRequests })}
+                        >
+                            <Text style={styles.seeAllText}>Xem tất cả</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <FlatList
+                        data={friendRequests}
+                        renderItem={renderFriendRequest}
+                        keyExtractor={(item) => item.id}
+                        scrollEnabled={false}
+                        showsVerticalScrollIndicator={false}
+                    />
+                </>
+            )}
         </ScrollView>
     );
 }
@@ -187,6 +310,75 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f8fafc',
+    },
+    searchContainer: {
+        backgroundColor: '#fff',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e2e8f0',
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f1f5f9',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 44,
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+        color: '#1e293b',
+        paddingVertical: 0,
+    },
+    clearButton: {
+        padding: 4,
+        marginLeft: 8,
+    },
+    searchResultsContainer: {
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e2e8f0',
+    },
+    searchResultsTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1e293b',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    searchResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    searchAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginRight: 12,
+    },
+    searchUserInfo: {
+        flex: 1,
+    },
+    searchUserName: {
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#1e293b',
+    },
+    noResultsText: {
+        fontSize: 14,
+        color: '#6b7280',
+        textAlign: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
     },
     header: {
         flexDirection: 'row',

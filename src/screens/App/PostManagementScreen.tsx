@@ -25,6 +25,7 @@ import * as Location from 'expo-location';
 import {
     Comment,
     CreatePostData,
+    UpdatePostData,
     FeelingActivity,
     LocationData,
     MediaItem,
@@ -36,7 +37,7 @@ import {
     FEELINGS,
     PRIVACY_OPTIONS,
 } from '@/src/constants/Post';
-import { createPost } from '@/src/services/post/post';
+import { createPost, updatePost, deletePost } from '@/src/services/post/post';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -129,24 +130,8 @@ export default function PostManagementScreen(): JSX.Element {
         {
             id: '2',
             content: 'Cuối tuần rồi! 🎉',
-            media: [
-                {
-                    id: '1',
-                    type: 'image',
-                    uri: 'https://picsum.photos/400/300?random=1',
-                },
-                {
-                    id: '2',
-                    type: 'video',
-                    uri: 'https://www.w3schools.com/html/mov_bbb.mp4',
-                    thumbnail: 'https://picsum.photos/400/300?random=2',
-                }
-            ],
-            location: {
-                name: 'Quận 3, TP.HCM',
-                address: '456 Lê Văn Sỹ, Quận 3, TP.HCM',
-                coordinates: { latitude: 10.784, longitude: 106.689 },
-            },
+            media: [],
+            location: null,
             feelingActivity: {
                 type: 'activity',
                 emoji: '🎵',
@@ -221,14 +206,14 @@ export default function PostManagementScreen(): JSX.Element {
             location: selectedLocation || null,
             feelingActivity: selectedFeelingActivity || null,
             privacy: postPrivacy,
-            authorId: '6b890279-bcbd-4c5e-adc3-6a92e8ec90bb',
+            authorId: session?.user?.id || '',
         };
 
         try {
             const response = await createPost(session!, newPost);
             if (response.success) {
                 if (response.data) {
-                    console.log("createPost response:", response.data);
+                    console.log('createPost response:', response.data);
                     setPosts([response.data, ...posts]);
                 }
             } else {
@@ -249,32 +234,50 @@ export default function PostManagementScreen(): JSX.Element {
         )
             return;
 
-        const updatedPosts = posts.map((post) =>
-            post.id === selectedPost.id
-                ? {
-                    ...post,
-                    content: postContent,
-                    privacy: postPrivacy,
-                    media: selectedMedia,
-                    location: selectedLocation || null,
-                    feelingActivity: selectedFeelingActivity || null,
-                    backgroundColor:
-                        selectedBackground !== 'transparent'
-                            ? selectedBackground
-                            : undefined,
-                    textColor:
-                        selectedBackground !== 'transparent'
-                            ? '#ffffff'
-                            : undefined,
-                }
-                : post
-        );
+        const updateData: UpdatePostData = {
+            content: postContent,
+            privacy: postPrivacy,
+            media: selectedMedia, // Luôn gửi media, kể cả khi empty array để xóa ảnh
+        };
 
-        setPosts(updatedPosts);
-        setShowEditModal(false);
-        setSelectedPost(null);
-        resetForm();
-        Alert.alert('Thành công', 'Đã cập nhật bài viết');
+        // Chỉ thêm location nếu có thay đổi hoặc cần xóa
+        if (selectedLocation !== undefined) {
+            updateData.location = selectedLocation;
+        }
+
+        // Chỉ thêm feelingActivity nếu có thay đổi hoặc cần xóa
+        if (selectedFeelingActivity !== undefined) {
+            updateData.feelingActivity = selectedFeelingActivity;
+        }
+
+        try {
+            const response = await updatePost(
+                selectedPost.id,
+                updateData,
+                session!
+            );
+            if (response.success) {
+                // Update local state with the updated post
+                const updatedPosts = posts.map((post) =>
+                    post.id === selectedPost.id ? response.data! : post
+                );
+                setPosts(updatedPosts);
+                setShowEditModal(false);
+                setSelectedPost(null);
+                resetForm();
+                Alert.alert('Thành công', 'Đã cập nhật bài viết');
+            } else {
+                Alert.alert(
+                    'Lỗi',
+                    response.error || 'Không thể cập nhật bài viết'
+                );
+            }
+        } catch (error) {
+            Alert.alert(
+                'Lỗi',
+                'Không thể cập nhật bài viết. Vui lòng thử lại sau.'
+            );
+        }
     };
 
     const handlePickMedia = async (type: 'camera' | 'library') => {
@@ -483,20 +486,26 @@ export default function PostManagementScreen(): JSX.Element {
                             )}
                         </View>
                     </View>
-                    <View style={styles.postActions}>
-                        <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => openEditModal(post)}
-                        >
-                            <Feather name="edit-2" size={16} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={() => handleDeletePost(post.id)}
-                        >
-                            <Feather name="trash-2" size={16} color="#ef4444" />
-                        </TouchableOpacity>
-                    </View>
+                    {session?.user?.id === post.author.id && (
+                        <View style={styles.postActions}>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => openEditModal(post)}
+                            >
+                                <Feather name="edit-2" size={16} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => handleDeletePost(post.id)}
+                            >
+                                <Feather
+                                    name="trash-2"
+                                    size={16}
+                                    color="#ef4444"
+                                />
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
 
                 {/* Post Content with Background */}
@@ -566,15 +575,33 @@ export default function PostManagementScreen(): JSX.Element {
         );
     };
 
-    const handleDeletePost = (postId: string) => {
+    const handleDeletePost = async (postId: string) => {
         Alert.alert('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa bài viết này?', [
             { text: 'Hủy', style: 'cancel' },
             {
                 text: 'Xóa',
                 style: 'destructive',
-                onPress: () => {
-                    setPosts(posts.filter((post) => post.id !== postId));
-                    Alert.alert('Thành công', 'Đã xóa bài viết');
+                onPress: async () => {
+                    try {
+                        const response = await deletePost(postId, session!);
+                        if (response.success) {
+                            // Remove the post from local state
+                            setPosts(
+                                posts.filter((post) => post.id !== postId)
+                            );
+                            Alert.alert('Thành công', 'Đã xóa bài viết');
+                        } else {
+                            Alert.alert(
+                                'Lỗi',
+                                response.error || 'Không thể xóa bài viết'
+                            );
+                        }
+                    } catch (error) {
+                        Alert.alert(
+                            'Lỗi',
+                            'Không thể xóa bài viết. Vui lòng thử lại sau.'
+                        );
+                    }
                 },
             },
         ]);

@@ -8,6 +8,7 @@ import {
     FlatList,
     Image,
     Modal,
+    RefreshControl,
     Share,
     StyleSheet,
     Text,
@@ -20,13 +21,18 @@ import {
 import { PRIVACY_OPTIONS } from '@/src/constants/Post';
 import { AuthContext } from '@/src/context/AuthContext';
 import { acceptFriendRequest, AddFriendRequest, getFriendsCount, getFriendshipStatus, getUserPhotos, removeFriend } from '@/src/services/friend/friend';
-import { getUserPosts } from '@/src/services/post/post';
-import { GetUserProfile, UpdateUserAvatar, UpdateUserCoverPhoto, UpdateUserProfile } from '@/src/services/user/UserInfo';
+import { getPostsByUserId } from '@/src/services/post/post';
+import * as UserService from '@/src/services/user/UserInfo';
+import { GetUserProfile, GetUserProfileById, UpdateUserAvatar, UpdateUserCoverPhoto, UpdateUserProfile } from '@/src/services/user/UserInfo';
 import { UpdateUserInfo, UserInfo } from '@/src/types/auth';
 import { Comment, MediaItem, Post } from '@/src/types/post';
 import { FriendsStackParamList, ProfileStackParamList } from '@/src/types/route';
 import * as ImagePicker from 'expo-image-picker';
 import { ScrollView } from 'react-native-gesture-handler';
+
+// Debug: Check if GetUserProfileById is imported correctly
+console.log('GetUserProfileById function:', typeof GetUserProfileById);
+
 const { width: screenWidth } = Dimensions.get('window');
 const photoSize = (screenWidth - 6) / 3; // 3 columns with 2px margin
 
@@ -80,26 +86,49 @@ export default function PersonalScreen(): JSX.Element {
     // Fetch user profile and posts
     const fetchUserProfile = async (session: Session) => {
         try {
-            // If viewing own profile, get profile from current session
+            console.log('fetchUserProfile called for userId:', targetUserId, 'isOwnProfile:', isOwnProfile);
+            console.log('UserService:', Object.keys(UserService));
+            console.log('GetUserProfileById direct:', typeof GetUserProfileById);
+            console.log('UserService.GetUserProfileById:', typeof UserService.GetUserProfileById);
+            
             if (isOwnProfile) {
                 const response = await GetUserProfile(session);
                 if (response.success && response.data) {
+                    console.log('Own profile loaded successfully:', response.data.fullName);
                     setUserProfile(response.data);
                 }
             } else {
-                // For other users, we'd need a different API call to get their public profile
-                // For now, set a placeholder profile
-                setUserProfile({
-                    id: targetUserId || null,
-                    fullName: 'Người dùng khác',
-                    email: null,
-                    phone: null,
-                    address: null,
-                    gender: null,
-                    birthDate: null,
-                    avatar: null,
-                    coverPhoto: null,
-                });
+                // Lấy thông tin user khác theo userId
+                if (targetUserId) {
+                    console.log('Fetching profile for other user:', targetUserId);
+                    
+                    // Try both ways to call the function
+                    let response;
+                    try {
+                        response = await GetUserProfileById(targetUserId);
+                    } catch (error) {
+                        console.log('Direct import failed, trying UserService import:', error);
+                        response = await UserService.GetUserProfileById(targetUserId);
+                    }
+                    
+                    if (response.success && response.data) {
+                        console.log('Other user profile loaded successfully:', response.data.fullName);
+                        setUserProfile(response.data);
+                    } else {
+                        console.error('Error fetching user profile by ID:', response.error);
+                        setUserProfile({
+                            id: targetUserId,
+                            fullName: 'Người dùng khác',
+                            email: null,
+                            phone: null,
+                            address: null,
+                            gender: null,
+                            birthDate: null,
+                            avatar: null,
+                            coverPhoto: null,
+                        });
+                    }
+                }
             }
         } catch (error) {
             console.error('Error fetching user profile:', error);
@@ -238,8 +267,10 @@ export default function PersonalScreen(): JSX.Element {
             }
 
             // Try to get posts from API first
-            const response = await getUserPosts(targetUserId);
+            const response = await getPostsByUserId(targetUserId);
+            console.log('fetchUserPosts response:', response);
             if (response.success && response.data) {
+                console.log('Posts data received:', response.data);
                 setPosts(response.data);
             } else {
                 console.error('Error fetching posts:', response.error);
@@ -255,47 +286,47 @@ export default function PersonalScreen(): JSX.Element {
         }
     };
 
-        const handleSave = async (): Promise<void> => {
-            setLoading(true);
-            try {
-                if (!session) {
-                    Alert.alert('Lỗi', 'Bạn cần đăng nhập để cập nhật hồ sơ.');
-                    return;
-                }
-    
-                let avatarToSave: string | null = originalAvatar;
-    
-                // Nếu user đã chọn ảnh mới thì upload
-                if (selectedImageUri) {
-                    const response = await UpdateUserAvatar(session, selectedImageUri);
-                    if (!response || !response.data) throw new Error('Không thể cập nhật avatar.');
-                    avatarToSave = response.data.replace(/^uploads\//, '');
-                }
-    
-                const updateData: Partial<UpdateUserInfo> = {
-                    fullName: formData.fullName,
-                    email: formData.email,
-                    phone: formData.phone,
-                    address: formData.address,
-                    birthDate: formData.birthDate,
-                    gender: formData.gender,
-                };
-    
-                // Chỉ thêm avatar nếu có sự thay đổi
-                if (avatarToSave !== originalAvatar) {
-                    updateData.avatar = avatarToSave;
-                }
-    
-                await UpdateUserProfile(session.user.id, updateData);
-                Alert.alert('Thành công', 'Hồ sơ đã được cập nhật!');
-                navigation.goBack();
-            } catch (error) {
-                console.error('Error updating profile:', error);
-                Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ. Vui lòng thử lại!');
-            } finally {
-                setLoading(false);
+    const handleSave = async (): Promise<void> => {
+        setLoading(true);
+        try {
+            if (!session) {
+                Alert.alert('Lỗi', 'Bạn cần đăng nhập để cập nhật hồ sơ.');
+                return;
             }
-        };
+
+            let avatarToSave: string | null = originalAvatar;
+
+            // Nếu user đã chọn ảnh mới thì upload
+            if (selectedImageUri) {
+                const response = await UpdateUserAvatar(session, selectedImageUri);
+                if (!response || !response.data) throw new Error('Không thể cập nhật avatar.');
+                avatarToSave = response.data.replace(/^uploads\//, '');
+            }
+
+            const updateData: Partial<UpdateUserInfo> = {
+                fullName: formData.fullName,
+                email: formData.email,
+                phone: formData.phone,
+                address: formData.address,
+                birthDate: formData.birthDate,
+                gender: formData.gender,
+            };
+
+            // Chỉ thêm avatar nếu có sự thay đổi
+            if (avatarToSave !== originalAvatar) {
+                updateData.avatar = avatarToSave;
+            }
+
+            await UpdateUserProfile(session.user.id, updateData);
+            Alert.alert('Thành công', 'Hồ sơ đã được cập nhật!');
+            navigation.goBack();
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ. Vui lòng thử lại!');
+        } finally {
+            setLoading(false);
+        }
+    };
 
 
     const handleImagePicker = async (type: 'camera' | 'gallery') => {
@@ -377,7 +408,7 @@ export default function PersonalScreen(): JSX.Element {
             }));
 
             Alert.alert('Thành công', 'Ảnh đại diện đã được cập nhật!');
-            
+
             // Refresh user profile to show updated avatar
             if (session) {
                 await fetchUserProfile(session);
@@ -400,27 +431,27 @@ export default function PersonalScreen(): JSX.Element {
         try {
             console.log('Uploading new cover photo:', imageUri);
             const response = await UpdateUserCoverPhoto(session, imageUri);
-            
+
             if (!response.success || !response.data) {
                 throw new Error(response.error || 'Không thể cập nhật ảnh bìa.');
             }
 
             const coverPhotoUrl = response.data;
             setCoverPhotoUri(coverPhotoUrl);
-            
+
             // Update formData as well
             setFormData((prev: UpdateUserInfo) => ({
                 ...prev,
                 coverPhoto: coverPhotoUrl,
             }));
-            
+
             Alert.alert('Thành công', 'Ảnh bìa đã được cập nhật!');
-            
+
             // Refresh user profile to get updated data
             if (session) {
                 await fetchUserProfile(session);
             }
-            
+
         } catch (error) {
             console.error('Error updating cover photo:', error);
             Alert.alert('Lỗi', 'Không thể cập nhật ảnh bìa. Vui lòng thử lại!');
@@ -592,47 +623,40 @@ export default function PersonalScreen(): JSX.Element {
         setPosts(updatedPosts);
     };
 
-    const formatDate = (date: Date) => {
-        return date.toLocaleDateString('vi-VN', {
+    const formatDate = (date: Date | string | undefined | null) => {
+        console.log('formatDate input:', { date, type: typeof date });
+        
+        if (!date) {
+            console.log('formatDate: No date provided');
+            return 'Không có thông tin thời gian';
+        }
+
+        let dateObj: Date;
+        if (typeof date === 'string') {
+            dateObj = new Date(date);
+        } else if (date instanceof Date) {
+            dateObj = date;
+        } else {
+            console.log('formatDate: Invalid date type');
+            return 'Thời gian không hợp lệ';
+        }
+
+        if (isNaN(dateObj.getTime())) {
+            console.log('formatDate: Invalid date object');
+            return 'Thời gian không hợp lệ';
+        }
+
+        const result = dateObj.toLocaleDateString('vi-VN', {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
         });
-    };
-
-    // Render photos grid
-    const renderPhotoGrid = () => {
-        if (userPhotos.length === 0) {
-            return (
-                <View style={styles.emptyContainer}>
-                    <Feather name="image" size={64} color="#9ca3af" />
-                    <Text style={styles.emptyText}>Chưa có ảnh nào</Text>
-                    <Text style={styles.emptySubText}>
-                        {isOwnProfile ? 'Hãy chia sẻ ảnh đầu tiên của bạn!' : 'Người dùng này chưa có ảnh nào.'}
-                    </Text>
-                </View>
-            );
-        }
-
-        return (
-            <FlatList
-                data={userPhotos}
-                numColumns={3}
-                keyExtractor={(item, index) => `photo-${index}`}
-                renderItem={({ item }) => (
-                    <TouchableOpacity style={styles.photoItem}>
-                        <Image source={{ uri: item }} style={styles.photoImage} />
-                    </TouchableOpacity>
-                )}
-                showsVerticalScrollIndicator={false}
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                contentContainerStyle={styles.photosGrid}
-            />
-        );
-    };
+        
+        console.log('formatDate result:', result);
+        return result;
+    };    // renderPhotoGrid function removed - using FlatList directly
 
     // Render individual post
     const renderPost = ({ item: post }: { item: Post }) => {
@@ -664,7 +688,19 @@ export default function PersonalScreen(): JSX.Element {
                             </View>
                             <View style={styles.postMeta}>
                                 <Text style={styles.postDate}>
-                                    {formatDate(post.createdAt)}
+                                    {(() => {
+                                        console.log('Post date debug:', {
+                                            postId: post.id,
+                                            createdAt: post.createdAt,
+                                            updatedAt: post.updatedAt,
+                                            createdAtType: typeof post.createdAt,
+                                            updatedAtType: typeof post.updatedAt
+                                        });
+                                        return formatDate(post.updatedAt || post.createdAt);
+                                    })()}
+                                    {post.updatedAt && post.updatedAt !== post.createdAt && (
+                                        <Text style={styles.editedText}> • Đã chỉnh sửa</Text>
+                                    )}
                                 </Text>
                                 <View style={styles.privacyIndicator}>
                                     <Feather
@@ -773,20 +809,26 @@ export default function PersonalScreen(): JSX.Element {
     }
 
     return (
-        <ScrollView>
-
+        <ScrollView
+            refreshControl={
+                <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
+                />
+            }
+        >
             <TouchableWithoutFeedback onPress={() => setShowFriendDropdown(false)}>
                 <View style={styles.container}>
                     {/* Header Section with Cover Photo */}
                     <View style={styles.coverSection}>
                         {/* Cover Photo */}
                         <Image
-                            source={{ 
-                                uri: userProfile?.coverPhoto || coverPhotoUri || 'https://picsum.photos/400/200?random=cover' 
+                            source={{
+                                uri: userProfile?.coverPhoto || coverPhotoUri || 'https://picsum.photos/400/200?random=cover'
                             }}
                             style={styles.coverImage}
                         />
-                        
+
                         {/* Cover Photo Loading Overlay */}
                         {coverPhotoLoading && (
                             <View style={styles.coverLoadingOverlay}>
@@ -803,15 +845,17 @@ export default function PersonalScreen(): JSX.Element {
                                 <Feather name="arrow-left" size={24} color="#fff" />
                             </TouchableOpacity>
                             <View style={styles.headerActions}>
-                                <TouchableOpacity 
-                                    style={styles.headerActionButton} 
-                                    onPress={() => {
-                                        setImagePickerType('cover');
-                                        setShowImagePickerModal(true);
-                                    }}
-                                >
-                                    <Feather name="camera" size={20} color="#fff" />
-                                </TouchableOpacity>
+                                {isOwnProfile && (
+                                    <TouchableOpacity
+                                        style={styles.headerActionButton}
+                                        onPress={() => {
+                                            setImagePickerType('cover');
+                                            setShowImagePickerModal(true);
+                                        }}
+                                    >
+                                        <Feather name="camera" size={20} color="#fff" />
+                                    </TouchableOpacity>
+                                )}
                                 <TouchableOpacity style={styles.headerActionButton}>
                                     <Feather name="more-horizontal" size={20} color="#fff" />
                                 </TouchableOpacity>
@@ -823,20 +867,22 @@ export default function PersonalScreen(): JSX.Element {
                             <Image
                                 source={{
                                     uri: userProfile?.avatar ||
-                                        session.user.user_metadata?.avatar_url ||
+                                        (isOwnProfile ? session.user.user_metadata?.avatar_url : null) ||
                                         'https://picsum.photos/100/100?random=user1'
                                 }}
                                 style={styles.profileAvatar}
                             />
-                            <TouchableOpacity 
-                                style={styles.avatarCameraButton} 
-                                onPress={() => {
-                                    setImagePickerType('avatar');
-                                    setShowImagePickerModal(true);
-                                }}
-                            >
-                                <Feather name="camera" size={16} color="#fff" />
-                            </TouchableOpacity>
+                            {isOwnProfile && (
+                                <TouchableOpacity
+                                    style={styles.avatarCameraButton}
+                                    onPress={() => {
+                                        setImagePickerType('avatar');
+                                        setShowImagePickerModal(true);
+                                    }}
+                                >
+                                    <Feather name="camera" size={16} color="#fff" />
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </View>
 
@@ -870,9 +916,7 @@ export default function PersonalScreen(): JSX.Element {
                             <View style={styles.nameAndActionsRow}>
                                 <View style={styles.nameContainer}>
                                     <Text style={styles.profileName}>
-                                        {userProfile?.fullName ||
-                                            session.user.user_metadata?.full_name ||
-                                            'Uyên Uyên'}
+                                        {userProfile?.fullName || 'Đang tải...'}
                                     </Text>
                                     <Text style={styles.friendsCount}>{friendsCount} người bạn</Text>
                                 </View>
@@ -909,7 +953,7 @@ export default function PersonalScreen(): JSX.Element {
                                                 onPress={() => handleFriendAction('accept')}
                                             >
                                                 <Feather name="user-plus" size={16} color="#fff" />
-                                                <Text style={styles.acceptFriendButtonText}>Xác nhận kết bạn</Text>
+                                                <Text style={styles.acceptFriendButtonText}>Xác nhận</Text>
                                             </TouchableOpacity>
                                         )}
 
@@ -957,27 +1001,48 @@ export default function PersonalScreen(): JSX.Element {
                             <Text style={styles.loadingText}>Đang tải...</Text>
                         </View>
                     ) : activeTab === 'posts' ? (
-                        posts.length === 0 ? (
-                            <View style={styles.emptyContainer}>
-                                <Feather name="file-text" size={64} color="#9ca3af" />
-                                <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
-                                <Text style={styles.emptySubText}>
-                                    {isOwnProfile ? 'Hãy chia sẻ khoảnh khắc đầu tiên của bạn!' : 'Người dùng này chưa có bài viết nào.'}
-                                </Text>
-                            </View>
-                        ) : (
-                            <FlatList
-                                data={posts}
-                                keyExtractor={(item) => item.id}
-                                renderItem={renderPost}
-                                style={styles.postsList}
-                                showsVerticalScrollIndicator={false}
-                                refreshing={refreshing}
-                                onRefresh={handleRefresh}
-                            />
-                        )
+                        <FlatList
+                            data={posts}
+                            keyExtractor={(item) => item.id}
+                            renderItem={renderPost}
+                            showsVerticalScrollIndicator={false}
+                            scrollEnabled={false}
+                            style={{ flex: 1 }}
+                            ListEmptyComponent={() => (
+                                <View style={styles.emptyContainer}>
+                                    <Feather name="file-text" size={64} color="#9ca3af" />
+                                    <Text style={styles.emptyText}>Chưa có bài viết nào</Text>
+                                    <Text style={styles.emptySubText}>
+                                        {isOwnProfile ? 'Hãy chia sẻ khoảnh khắc đầu tiên của bạn!' : 'Người dùng này chưa có bài viết nào.'}
+                                    </Text>
+                                </View>
+                            )}
+                        />
                     ) : (
-                        renderPhotoGrid()
+                        <FlatList
+                            data={userPhotos}
+                            numColumns={3}
+                            keyExtractor={(item, index) => `photo-${index}`}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity style={styles.photoItem}>
+                                    <Image source={{ uri: item }} style={styles.photoImage} />
+                                </TouchableOpacity>
+                            )}
+                            showsVerticalScrollIndicator={false}
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            contentContainerStyle={styles.photosGrid}
+                            style={{ flex: 1 }}
+                            ListEmptyComponent={() => (
+                                <View style={styles.emptyContainer}>
+                                    <Feather name="image" size={64} color="#9ca3af" />
+                                    <Text style={styles.emptyText}>Chưa có ảnh nào</Text>
+                                    <Text style={styles.emptySubText}>
+                                        {isOwnProfile ? 'Hãy chia sẻ ảnh đầu tiên của bạn!' : 'Người dùng này chưa có ảnh nào.'}
+                                    </Text>
+                                </View>
+                            )}
+                        />
                     )}
 
                     {/* Comments Modal */}
@@ -1110,7 +1175,6 @@ export default function PersonalScreen(): JSX.Element {
                 </View>
             </TouchableWithoutFeedback>
         </ScrollView>
-
     );
 }
 
@@ -1428,6 +1492,11 @@ const styles = StyleSheet.create({
         color: '#65676b',
         marginRight: 4,
     },
+    editedText: {
+        fontSize: 11,
+        color: '#8a8d91',
+        fontStyle: 'italic',
+    },
     privacyIndicator: {
         marginLeft: 4,
     },
@@ -1710,7 +1779,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         borderRadius: 8,
         gap: 6,
-        flex: 1,
+        // flex: 1,
+        width: '70%',
+        marginLeft:5,
     },
     acceptFriendButtonText: {
         color: '#fff',
