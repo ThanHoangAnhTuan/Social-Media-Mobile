@@ -1,45 +1,4 @@
 import {
-    Feather,
-    MaterialIcons,
-    Ionicons,
-    FontAwesome5,
-} from '@expo/vector-icons';
-import React, {
-    JSX,
-    useContext,
-    useState,
-    useEffect,
-    useCallback,
-} from 'react';
-import {
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ScrollView,
-    TextInput,
-    Modal,
-    Alert,
-    FlatList,
-    Share,
-    Dimensions,
-    Platform,
-} from 'react-native';
-import { Session } from '@supabase/supabase-js';
-import { AuthContext } from '@context/AuthContext';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
-import {
-    Comment,
-    CreatePostData,
-    UpdatePostData,
-    FeelingActivity,
-    LocationData,
-    MediaItem,
-    Post,
-} from '@/src/types/post';
-import {
     ACTIVITIES,
     BACKGROUND_COLORS,
     FEELINGS,
@@ -54,6 +13,42 @@ import {
 } from '@/src/services/post/post';
 import { useFocusEffect } from '@react-navigation/native';
 import { GetUserProfile } from '@/src/services/user/UserInfo';
+import {
+    Comment,
+    CreatePostData,
+    FeelingActivity,
+    LocationData,
+    MediaItem,
+    Post,
+    UpdatePostData,
+} from '@/src/types/post';
+import { AuthContext } from '@context/AuthContext';
+import {
+    Feather,
+    Ionicons
+} from '@expo/vector-icons';
+import { Session } from '@supabase/supabase-js';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import React, {
+    JSX,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
+import {
+    Alert,
+    Dimensions,
+    FlatList,
+    Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity, TouchableWithoutFeedback, View
+} from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -736,10 +731,10 @@ export default function HomeScreen(): JSX.Element {
         const updatedPosts = posts.map((post) =>
             post.id === postId
                 ? {
-                      ...post,
-                      isLiked: !post.isLiked,
-                      likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                  }
+                    ...post,
+                    isLiked: !post.isLiked,
+                    likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                }
                 : post
         );
         setPosts(updatedPosts);
@@ -840,136 +835,147 @@ export default function HomeScreen(): JSX.Element {
         </View>
     );
 
-    const CreatePostForm = () => (
-        <ScrollView style={styles.modalContent}>
-            {/* Post Input */}
-            <TextInput
-                style={[
-                    styles.contentInput,
-                    selectedBackground !== 'transparent' && {
-                        backgroundColor: selectedBackground,
-                        color: '#ffffff',
-                        borderColor: 'transparent',
-                    },
-                ]}
-                placeholder="Bạn đang nghĩ gì?"
-                placeholderTextColor={
-                    selectedBackground !== 'transparent'
-                        ? 'rgba(255,255,255,0.7)'
-                        : '#6b7280'
-                }
-                multiline
-                value={postContent}
-                onChangeText={setPostContent}
-            />
+    const CreatePostForm = useMemo(() => (
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={styles.modalContent}>
+                    {/* Post Input */}
+                    <TextInput
+                        style={[
+                            styles.contentInput,
+                            selectedBackground !== 'transparent' && {
+                                backgroundColor: selectedBackground,
+                                color: '#ffffff',
+                                borderColor: 'transparent',
+                            },
+                        ]}
+                        placeholder="Bạn đang nghĩ gì?"
+                        placeholderTextColor={
+                            selectedBackground !== 'transparent'
+                                ? 'rgba(255,255,255,0.7)'
+                                : '#6b7280'
+                        }
+                        multiline
+                        value={postContent}
+                        onChangeText={setPostContent}
+                    />
 
-            {/* Selected Media */}
-            {renderCreateFormMedia()}
+                    {/* Selected Media */}
+                    {renderCreateFormMedia()}
 
-            {/* Selected Location */}
-            {selectedLocation && (
-                <View style={styles.selectedItem}>
-                    <Feather name="map-pin" size={16} color="#6366f1" />
-                    <Text style={styles.selectedItemText}>
-                        {selectedLocation.name}
-                    </Text>
-                    <TouchableOpacity onPress={() => setSelectedLocation(null)}>
-                        <Feather name="x" size={16} color="#6b7280" />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {/* Selected Feeling/Activity */}
-            {selectedFeelingActivity && (
-                <View style={styles.selectedItem}>
-                    <Text style={styles.selectedItemEmoji}>
-                        {selectedFeelingActivity.emoji}
-                    </Text>
-                    <Text style={styles.selectedItemText}>
-                        {selectedFeelingActivity.type === 'feeling'
-                            ? 'Đang cảm thấy'
-                            : ''}{' '}
-                        {selectedFeelingActivity.text}
-                    </Text>
-                    <TouchableOpacity
-                        onPress={() => setSelectedFeelingActivity(null)}
-                    >
-                        <Feather name="x" size={16} color="#6b7280" />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {/* Post Options */}
-            <View style={styles.postOptions}>
-                <Text style={styles.postOptionsTitle}>Thêm vào bài viết</Text>
-
-                <View style={styles.optionButtons}>
-                    <TouchableOpacity
-                        style={styles.optionButton}
-                        onPress={() => setShowMediaPicker(true)}
-                    >
-                        <Ionicons name="image" size={24} color="#45b7d1" />
-                        <Text style={styles.optionButtonText}>Ảnh/Video</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.optionButton}
-                        onPress={() => setShowLocationPicker(true)}
-                    >
-                        <Feather name="map-pin" size={24} color="#f39c12" />
-                        <Text style={styles.optionButtonText}>Vị trí</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.optionButton}
-                        onPress={() => setShowFeelingPicker(true)}
-                    >
-                        <Feather name="smile" size={24} color="#e74c3c" />
-                        <Text style={styles.optionButtonText}>Cảm xúc</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.optionButton}
-                        onPress={() => setShowBackgroundPicker(true)}
-                    >
-                        <Ionicons
-                            name="color-palette"
-                            size={24}
-                            color="#9b59b6"
-                        />
-                        <Text style={styles.optionButtonText}>Nền</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Privacy Section */}
-            <View style={styles.privacySection}>
-                <Text style={styles.privacyLabel}>Quyền riêng tư:</Text>
-                <View style={styles.privacyOptions}>
-                    {PRIVACY_OPTIONS.map((option) => (
-                        <TouchableOpacity
-                            key={option.value}
-                            style={[
-                                styles.privacyOption,
-                                postPrivacy === option.value &&
-                                    styles.privacyOptionSelected,
-                            ]}
-                            onPress={() => setPostPrivacy(option.value as any)}
-                        >
-                            <Feather
-                                name={option.icon as any}
-                                size={16}
-                                color={option.color}
-                            />
-                            <Text style={styles.privacyOptionText}>
-                                {option.label}
+                    {/* Selected Location */}
+                    {selectedLocation && (
+                        <View style={styles.selectedItem}>
+                            <Feather name="map-pin" size={16} color="#6366f1" />
+                            <Text style={styles.selectedItemText}>
+                                {selectedLocation.name}
                             </Text>
-                        </TouchableOpacity>
-                    ))}
+                            <TouchableOpacity onPress={() => setSelectedLocation(null)}>
+                                <Feather name="x" size={16} color="#6b7280" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Selected Feeling/Activity */}
+                    {selectedFeelingActivity && (
+                        <View style={styles.selectedItem}>
+                            <Text style={styles.selectedItemEmoji}>
+                                {selectedFeelingActivity.emoji}
+                            </Text>
+                            <Text style={styles.selectedItemText}>
+                                {selectedFeelingActivity.type === 'feeling'
+                                    ? 'Đang cảm thấy'
+                                    : ''}{' '}
+                                {selectedFeelingActivity.text}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={() => setSelectedFeelingActivity(null)}
+                            >
+                                <Feather name="x" size={16} color="#6b7280" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {/* Post Options */}
+                    <View style={styles.postOptions}>
+                        <Text style={styles.postOptionsTitle}>Thêm vào bài viết</Text>
+
+                        <View style={styles.optionButtons}>
+                            <TouchableOpacity
+                                style={styles.optionButton}
+                                onPress={() => setShowMediaPicker(true)}
+                            >
+                                <Ionicons name="image" size={24} color="#45b7d1" />
+                                <Text style={styles.optionButtonText}>Ảnh/Video</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.optionButton}
+                                onPress={() => setShowLocationPicker(true)}
+                            >
+                                <Feather name="map-pin" size={24} color="#f39c12" />
+                                <Text style={styles.optionButtonText}>Vị trí</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.optionButton}
+                                onPress={() => setShowFeelingPicker(true)}
+                            >
+                                <Feather name="smile" size={24} color="#e74c3c" />
+                                <Text style={styles.optionButtonText}>Cảm xúc</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.optionButton}
+                                onPress={() => setShowBackgroundPicker(true)}
+                            >
+                                <Ionicons
+                                    name="color-palette"
+                                    size={24}
+                                    color="#9b59b6"
+                                />
+                                <Text style={styles.optionButtonText}>Nền</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Privacy Section */}
+                    <View style={styles.privacySection}>
+                        <Text style={styles.privacyLabel}>Quyền riêng tư:</Text>
+                        <View style={styles.privacyOptions}>
+                            {PRIVACY_OPTIONS.map((option) => (
+                                <TouchableOpacity
+                                    key={option.value}
+                                    style={[
+                                        styles.privacyOption,
+                                        postPrivacy === option.value &&
+                                        styles.privacyOptionSelected,
+                                    ]}
+                                    onPress={() => setPostPrivacy(option.value as any)}
+                                >
+                                    <Feather
+                                        name={option.icon as any}
+                                        size={16}
+                                        color={option.color}
+                                    />
+                                    <Text style={styles.privacyOptionText}>
+                                        {option.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
                 </View>
-            </View>
-        </ScrollView>
-    );
+            </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+    ), [postContent,
+        selectedBackground,
+        selectedLocation,
+        selectedFeelingActivity,
+        postPrivacy]);
 
     return (
         <View style={styles.container}>
@@ -989,7 +995,7 @@ export default function HomeScreen(): JSX.Element {
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.ImageButton}
-                    // onPress={() => setShowCreateModal(true)}
+                // onPress={() => setShowCreateModal(true)}
                 >
                     <Ionicons name="image" size={24} color="#45b7d1" />
                 </TouchableOpacity>
@@ -1027,7 +1033,7 @@ export default function HomeScreen(): JSX.Element {
                             <Text style={styles.modalSaveButton}>Đăng</Text>
                         </TouchableOpacity>
                     </View>
-                    <CreatePostForm />
+                    {CreatePostForm}
                 </View>
             </Modal>
 
@@ -1054,7 +1060,7 @@ export default function HomeScreen(): JSX.Element {
                             <Text style={styles.modalSaveButton}>Lưu</Text>
                         </TouchableOpacity>
                     </View>
-                    <CreatePostForm />
+                    {CreatePostForm}
                 </View>
             </Modal>
 
@@ -1228,7 +1234,7 @@ export default function HomeScreen(): JSX.Element {
                                     style={[
                                         styles.backgroundOption,
                                         selectedBackground === bg.color &&
-                                            styles.backgroundOptionSelected,
+                                        styles.backgroundOptionSelected,
                                     ]}
                                     onPress={() => {
                                         setSelectedBackground(bg.color);

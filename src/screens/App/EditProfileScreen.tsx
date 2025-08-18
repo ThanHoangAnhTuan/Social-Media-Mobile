@@ -1,32 +1,40 @@
 import { Feather, MaterialIcons } from '@expo/vector-icons';
-import React, { JSX, useContext, useEffect, useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TextInput,
-    TouchableOpacity,
-    Image,
-    Alert,
-    Modal,
-} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Session } from '@supabase/supabase-js';
+import React, { JSX, useContext, useEffect, useState } from 'react';
+import {
+    Alert,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { UpdateUserInfo } from '@/src/types/auth';
-import { AuthContext } from '@context/AuthContext';
 import {
     GetUserProfile,
     UpdateUserAvatar,
     UpdateUserProfile,
 } from '@/src/services/user/UserInfo';
+import { UpdateUserInfo } from '@/src/types/auth';
+import { AuthContext } from '@context/AuthContext';
+import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-
 export default function EditProfileScreen(): JSX.Element {
+    const navigation = useNavigation();
     const { session } = useContext(AuthContext);
+    const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
+    const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null); // ảnh mới
 
+    useEffect(() => {
+        if (session?.user?.user_metadata?.avatar_url) {
+            setOriginalAvatar(session.user.user_metadata.avatar_url);
+        }
+    }, [session]);
     const [formData, setFormData] = useState<UpdateUserInfo>({
         fullName: null,
         email: null,
@@ -86,12 +94,33 @@ export default function EditProfileScreen(): JSX.Element {
                 Alert.alert('Lỗi', 'Bạn cần đăng nhập để cập nhật hồ sơ.');
                 return;
             }
-            // Update the user profile
-            console.log('Updating user profile with data:', formData);
 
-            await UpdateUserProfile(session.user.id, formData);
+            let avatarToSave: string | null = originalAvatar;
 
+            // Nếu user đã chọn ảnh mới thì upload
+            if (selectedImageUri) {
+                const response = await UpdateUserAvatar(session, selectedImageUri);
+                if (!response || !response.data) throw new Error('Không thể cập nhật avatar.');
+                avatarToSave = response.data.replace(/^uploads\//, '');
+            }
+
+            const updateData: Partial<UpdateUserInfo> = {
+                fullName: formData.fullName,
+                email: formData.email,
+                phone: formData.phone,
+                address: formData.address,
+                birthDate: formData.birthDate,
+                gender: formData.gender,
+            };
+
+            // Chỉ thêm avatar nếu có sự thay đổi
+            if (avatarToSave !== originalAvatar) {
+                updateData.avatar = avatarToSave;
+            }
+
+            await UpdateUserProfile(session.user.id, updateData);
             Alert.alert('Thành công', 'Hồ sơ đã được cập nhật!');
+            navigation.goBack();
         } catch (error) {
             console.error('Error updating profile:', error);
             Alert.alert('Lỗi', 'Không thể cập nhật hồ sơ. Vui lòng thử lại!');
@@ -99,6 +128,7 @@ export default function EditProfileScreen(): JSX.Element {
             setLoading(false);
         }
     };
+
 
     const formatDate = (date: Date | null): string => {
         return date ? date.toLocaleDateString('vi-VN') : 'Chọn ngày sinh';
@@ -176,28 +206,33 @@ export default function EditProfileScreen(): JSX.Element {
             return;
         }
 
+        // Nếu ảnh chưa đổi (vẫn là URL cũ hoặc path cũ)
+        if (
+            formData.avatar === imageUri || // URI chưa đổi
+            imageUri.includes(originalAvatar || '') // URI vẫn chứa avatar cũ
+        ) {
+            console.log('Avatar không thay đổi, bỏ qua upload.');
+            return;
+        }
+
         setAvatarLoading(true);
         try {
-            // Gọi API cập nhật avatar
             const response = await UpdateUserAvatar(session, imageUri);
-            const updatedAvatarUrl = response.data;
-            if (!updatedAvatarUrl) {
-                throw new Error('Không thể cập nhật ảnh đại diện.');
-            }
+            const fullPath = response.data;
 
-            // Cập nhật avatar trong formData
+            if (!fullPath) throw new Error('Không thể cập nhật ảnh đại diện.');
+
+            const relativePath = fullPath.replace(/^uploads\//, '');
+
             setFormData((prev: UpdateUserInfo) => ({
                 ...prev,
-                avatar: updatedAvatarUrl,
+                avatar: relativePath,
             }));
 
             Alert.alert('Thành công', 'Ảnh đại diện đã được cập nhật!');
         } catch (error) {
             console.error('Error updating avatar:', error);
-            Alert.alert(
-                'Lỗi',
-                'Không thể cập nhật ảnh đại diện. Vui lòng thử lại!'
-            );
+            Alert.alert('Lỗi', 'Không thể cập nhật ảnh đại diện. Vui lòng thử lại!');
         } finally {
             setAvatarLoading(false);
         }
@@ -359,7 +394,7 @@ export default function EditProfileScreen(): JSX.Element {
                                 style={[
                                     styles.selectText,
                                     !formData.birthDate &&
-                                        styles.placeholderText,
+                                    styles.placeholderText,
                                 ]}
                             >
                                 {formatDate(formData.birthDate)}

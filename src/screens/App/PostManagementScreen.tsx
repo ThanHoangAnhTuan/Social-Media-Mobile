@@ -611,10 +611,10 @@ export default function PostManagementScreen(): JSX.Element {
         const updatedPosts = posts.map((post) =>
             post.id === postId
                 ? {
-                      ...post,
-                      isLiked: !post.isLiked,
-                      likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                  }
+                    ...post,
+                    isLiked: !post.isLiked,
+                    likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+                }
                 : post
         );
         setPosts(updatedPosts);
@@ -825,7 +825,7 @@ export default function PostManagementScreen(): JSX.Element {
                             style={[
                                 styles.privacyOption,
                                 postPrivacy === option.value &&
-                                    styles.privacyOptionSelected,
+                                styles.privacyOptionSelected,
                             ]}
                             onPress={() => setPostPrivacy(option.value as any)}
                         >
@@ -1090,7 +1090,7 @@ export default function PostManagementScreen(): JSX.Element {
                                     style={[
                                         styles.backgroundOption,
                                         selectedBackground === bg.color &&
-                                            styles.backgroundOptionSelected,
+                                        styles.backgroundOptionSelected,
                                     ]}
                                     onPress={() => {
                                         setSelectedBackground(bg.color);

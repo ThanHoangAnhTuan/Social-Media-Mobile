@@ -4,12 +4,17 @@ import {
     SignInResponse,
     statusCodes,
 } from '@react-native-google-signin/google-signin';
-import React, { FC, useState } from 'react';
+import React, { FC, useContext, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { AuthContext } from '@/src/context/AuthContext';
+import { UpdateUserProfile } from '@/src/services/user/UserInfo';
 import { supabase } from '@lib/supabase';
+import { Session } from '@supabase/supabase-js';
+
 
 const GoogleLoginButton: FC = () => {
+    const { session } = useContext(AuthContext);
     const [message, setMessage] = useState<string>('');
 
     GoogleSignin.configure({
@@ -17,27 +22,89 @@ const GoogleLoginButton: FC = () => {
         webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     });
 
+    const saveGoogleAvatarToStorage = async (session: Session): Promise<string | null> => {
+        const avatarUrl = session.user.user_metadata?.avatar_url;
+        const userId = session.user.id;
+
+        if (!avatarUrl?.startsWith('https')) return null;
+
+        try {
+            const { data: existing } = await supabase
+                .from('user_info')
+                .select('avatar')
+                .eq('id', userId)
+                .single();
+
+            if (existing?.avatar?.startsWith('avatars/')) {
+                return existing.avatar;
+            }
+
+            const response = await fetch(avatarUrl);
+            const arrayBuffer = await response.arrayBuffer();
+
+            const fileName = `avatars/${Date.now()}.png`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('uploads')
+                .upload(fileName, arrayBuffer, {
+                    contentType: 'image/png',
+                    upsert: true,
+                });
+
+            if (uploadError) {
+                console.error('Upload error:', uploadError);
+                return null;
+            }
+
+            await supabase
+                .from('user_info')
+                .upsert({ id: userId, avatar: fileName }, { onConflict: 'id' });
+
+            return fileName;
+        } catch (err) {
+            console.error('saveGoogleAvatarToStorage error:', err);
+            return null;
+        }
+    };
+
+
     const handleGoogleSignIn = async () => {
         setMessage('');
         try {
             await GoogleSignin.hasPlayServices();
             // await GoogleSignin.revokeAccess();
-           
-            
             // await GoogleSignin.signOut();
             const userInfo: SignInResponse = await GoogleSignin.signIn();
-             console.log("1");
-            console.log('userInfo:', JSON.stringify(userInfo, null, 2));
-            
+            // console.log("1");
+            // console.log('userInfo:', JSON.stringify(userInfo, null, 2));
+
             if (userInfo?.data?.idToken) {
-                const { error } = await supabase.auth.signInWithIdToken({
+                const { error, data } = await supabase.auth.signInWithIdToken({
                     provider: 'google',
                     token: userInfo.data.idToken,
                 });
                 if (error) {
                     setMessage('Đã xảy ra lỗi khi đăng nhập với Google! Vui lòng thử lại sau.');
                 } else {
-                    setMessage('Đăng nhập với Google thành công!');
+                    console.log('data:', JSON.stringify(data, null, 2));
+
+                    if (data.session?.user.id) {
+                        const storedAvatar = await saveGoogleAvatarToStorage(data.session);
+
+                        const formData = {
+                            fullName: data.session.user.user_metadata.full_name || null,
+                            email: data.session.user.email || null,
+                            phone: data.session.user.phone || null,
+                            address: null,
+                            birthDate: null,
+                            gender: null,
+                            avatar: storedAvatar,
+                        };
+
+                        await UpdateUserProfile(data.session.user.id, formData);
+                        setMessage('Đăng nhập với Google thành công!');
+                    }
+
                 }
             } else {
                 throw new Error('Không tìm thấy ID token!');
@@ -53,7 +120,7 @@ const GoogleLoginButton: FC = () => {
                 );
             } else {
                 console.log(error);
-                
+
                 setMessage(
                     'Đã xảy ra lỗi khi đăng nhập với Google! Vui lòng thử lại sau.'
                 );

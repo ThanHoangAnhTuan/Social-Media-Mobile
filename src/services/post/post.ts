@@ -4,12 +4,12 @@ import { decode } from 'base64-arraybuffer';
 import { supabase } from '@/src/lib/supabase';
 import {
     CreatePostData,
+    FeelingActivity,
+    LocationData,
+    MediaItem,
     Post,
     PostsFilterOptions,
     UpdatePostData,
-    MediaItem,
-    LocationData,
-    FeelingActivity,
 } from '@/src/types/post';
 import { ServiceResponse } from '@/src/types/response';
 import * as FileSystem from 'expo-file-system';
@@ -691,24 +691,45 @@ const getPostsByUserId = async (
         if (!user) {
             return { success: false, error: 'User not found' };
         }
-        const formattedPosts = posts.map((post) => ({
-            id: post.id,
-            content: post.content,
-            media: post.media || null,
-            location: post.location || null,
-            feelingActivity: post.feeling_activity || null,
-            privacy: post.privacy,
-            likes: post.likes,
-            comments: post.comments,
-            shares: post.shares,
-            isLiked: post.isLiked,
-            createdAt: post.createdAt,
-            author: {
-                id: user.id,
-                name: user.full_name,
-                avatar: getUserAvatar(user.avatar) || '',
-            },
-        }));
+        const formattedPosts = posts.map((post) => {
+            console.log('Raw post data:', {
+                id: post.id,
+                created_at: post.created_at,
+                updated_at: post.updated_at,
+                created_at_type: typeof post.created_at,
+                updated_at_type: typeof post.updated_at
+            });
+
+            const createdAt = post.created_at ? new Date(post.created_at) : new Date();
+            const updatedAt = post.updated_at ? new Date(post.updated_at) : undefined;
+
+            console.log('Processed dates:', {
+                createdAt,
+                updatedAt,
+                createdAtValid: !isNaN(createdAt.getTime()),
+                updatedAtValid: updatedAt ? !isNaN(updatedAt.getTime()) : 'undefined'
+            });
+
+            return {
+                id: post.id,
+                content: post.content,
+                media: post.media || null,
+                location: post.location || null,
+                feelingActivity: post.feeling_activity || null,
+                privacy: post.privacy,
+                likes: post.likes,
+                comments: post.comments,
+                shares: post.shares,
+                isLiked: post.isLiked,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                author: {
+                    id: user.id,
+                    name: user.full_name,
+                    avatar: getUserAvatar(user.avatar) || '',
+                },
+            };
+        });
         // console.log('Formatted posts:', formattedPosts);
         // console.log('Posts raw:', posts);
         // console.log('User:', user);

@@ -49,6 +49,7 @@ export interface Post {
     shares: number;
     isLiked: boolean;
     createdAt: Date;
+    updatedAt?: Date;
     author: {
         id: string;
         name: string;

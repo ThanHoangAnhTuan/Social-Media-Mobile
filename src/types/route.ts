@@ -1,3 +1,5 @@
+import { FriendRequest } from "./friend";
+
 export type DrawerParamList = {
     Home: undefined;
     EditProfile: undefined;
@@ -9,6 +11,7 @@ export type RootStackParamList = {
     AppTabs: undefined;
     AppDrawer: undefined;
     Test: undefined;
+    Personal: { userId?: string };
 };
 
 export type TabParamList = {
@@ -16,9 +19,18 @@ export type TabParamList = {
     Friends: undefined;
     Notifications: undefined;
     Profile: undefined;
+    PersonalScreen: { userId: string };
+};
+
+export type ProfileStackParamList = {
+    ProfileContent: {userId: string};
+    Personal: { userId?: string };
 };
 
 export type FriendsStackParamList = {
-    FriendsContent: undefined;
-    FriendsRequest: undefined;
+    FriendsContent: { userId: string };
+    FriendsRequest: { currentUserId: string; friendRequests: FriendRequest[] };
+    PersonalContent: { userId: string };
 };
+
+

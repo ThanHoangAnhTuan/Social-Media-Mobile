@@ -1,21 +1,22 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-
-import FriendsScreen from '@screens/App/FriendsScreen';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import FriendsRequestScreen from '@screens/App/FriendsRequestScreen';
+import FriendsScreen from '@screens/App/FriendsScreen';
 import HomeScreen from '@screens/App/HomeScreen';
 import NotificationsScreen from '@screens/App/NotificationsScreen';
+import React from 'react';
+import PersonalScreen from '../screens/App/PersonalScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
-import { TabParamList, FriendsStackParamList } from '../types/route';
+import { FriendsStackParamList, ProfileStackParamList, TabParamList } from '../types/route';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator();
 const FriendsStack = createNativeStackNavigator<FriendsStackParamList>();
 const NotificationStack = createNativeStackNavigator();
-const ProfileStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const PersonalStack = createNativeStackNavigator();
 
 export const HomeStackScreen = () => {
     return (
@@ -36,17 +37,27 @@ export const FriendsStackScreen = () => {
                 name="FriendsRequest"
                 component={FriendsRequestScreen}
             />
+            <FriendsStack.Screen
+                name="PersonalContent"
+                component={PersonalScreen}
+                options={{  title: 'Personal Profile' }}
+            />
         </FriendsStack.Navigator>
     );
 };
 
 const ProfileStackScreen = () => {
     return (
-        <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+        <ProfileStack.Navigator screenOptions={{ headerShown: false }} initialRouteName='ProfileContent'>
+            <ProfileStack.Screen
+                name="Personal"
+                component={PersonalScreen}
+            />
             <ProfileStack.Screen
                 name="ProfileContent"
                 component={ProfileScreen}
             />
+
         </ProfileStack.Navigator>
     );
 };
@@ -105,7 +116,7 @@ export default function TabsNavigator() {
                 component={ProfileStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <MaterialIcons name="person" size={24} color={color} />
+                        <MaterialIcons name="menu" size={24} color={color} />
                     ),
                 }}
             />

@@ -2,15 +2,15 @@ import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/src/lib/supabase';
 import { UpdateUserInfo, UserInfo } from '@/src/types/auth';
-import * as FileSystem from 'expo-file-system';
-import { decode } from 'base64-arraybuffer';
 import { ServiceResponse } from '@/src/types/response';
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system';
 
 export const UpdateUserProfile = async (
     userId: string,
-    formData: UpdateUserInfo
+    formData: Partial<UpdateUserInfo>
 ): Promise<ServiceResponse<void>> => {
-    const { fullName, address, gender, birthDate, phone } = formData;
+    const { fullName, address, gender, birthDate, phone, avatar } = formData;
     const { error } = await supabase.from('user_info').upsert(
         {
             id: userId,
@@ -18,6 +18,7 @@ export const UpdateUserProfile = async (
             address,
             phone,
             gender,
+            avatar,
             yob: birthDate ? birthDate.toISOString() : null,
         },
         { onConflict: 'id' }
@@ -106,6 +107,87 @@ export const UpdateUserAvatar = async (
     }
 };
 
+export const UpdateUserCoverPhoto = async (
+    session: Session,
+    imageUri: string
+): Promise<ServiceResponse<string>> => {
+    const userId = session?.user?.id;
+    if (!userId) {
+        throw new Error('No user ID found in session');
+    }
+    try {
+        const userId = session.user.id;
+
+        // Get old cover photo to delete
+        const { data: oldCoverData, error: oldCoverError } = await supabase
+            .from('user_info')
+            .select('cover_photo')
+            .eq('id', userId)
+            .single();
+        if (oldCoverError) {
+            console.error('Error fetching old cover photo:', oldCoverError);
+        }
+        if (oldCoverData?.cover_photo) {
+            const { error: deleteError } = await supabase.storage
+                .from('uploads')
+                .remove([oldCoverData.cover_photo]);
+            if (deleteError) {
+                console.error('Error deleting old cover photo:', deleteError);
+            }
+        }
+
+        const random = new Date().getTime();
+        // Store cover photos in covers/ folder
+        let fileName = `avatars/${random}.png`;
+        const fileBase64 = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+        let imageData = decode(fileBase64);
+        let { data, error } = await supabase.storage
+            .from('uploads')
+            .upload(`${fileName}`, imageData, {
+                contentType: 'image/*',
+                upsert: true,
+                cacheControl: '3600',
+            });
+
+        if (error) {
+            console.error('Error uploading cover photo:', error);
+            return {
+                success: false,
+                error: 'Đã xảy ra lỗi khi tải ảnh bìa lên! Vui lòng thử lại sau.',
+            };
+        }
+
+        // Save cover photo path to database
+        const { error: updateError } = await supabase.from('user_info').upsert(
+            {
+                id: userId,
+                cover_photo: data?.path || null,
+            },
+            { onConflict: 'id' }
+        );
+        if (updateError) {
+            console.error('Error updating user cover photo:', updateError);
+            return {
+                success: false,
+                error: 'Đã xảy ra lỗi khi cập nhật ảnh bìa! Vui lòng thử lại sau.',
+            };
+        }
+
+        return {
+            data: getUserAvatar(data?.path ?? '') ?? '',
+            success: true,
+        };
+    } catch (error) {
+        console.error('Error updating user cover photo:', error);
+        return {
+            success: false,
+            error: 'Đã xảy ra lỗi khi cập nhật ảnh bìa! Vui lòng thử lại sau.',
+        };
+    }
+};
+
 export const GetUserProfile = async (
     session: Session
 ): Promise<ServiceResponse<UserInfo>> => {
@@ -136,7 +218,62 @@ export const GetUserProfile = async (
         gender: data?.gender || null,
         birthDate: data?.yob ? new Date(data.yob) : null,
         avatar: getUserAvatar(data?.avatar),
+        coverPhoto: getUserAvatar(data?.cover_photo),
     };
+    return { success: true, data: userInfo };
+};
+
+export const GetUserProfileById = async (
+    userId: string
+): Promise<ServiceResponse<UserInfo>> => {
+    if (!userId) {
+        return { success: false, error: 'No user ID provided' };
+    }
+
+    // Get user_info from our custom table
+    const { data: userInfoData, error: userInfoError } = await supabase
+        .from('user_info')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (userInfoError) {
+        return {
+            success: false,
+            error: 'Error fetching user info: ' + userInfoError.message,
+        };
+    }
+
+    // If no data found in user_info table, return minimal profile
+    if (!userInfoData) {
+        return {
+            success: true,
+            data: {
+                id: userId,
+                email: null,
+                phone: null,
+                fullName: 'Người dùng',
+                address: null,
+                gender: null,
+                birthDate: null,
+                avatar: null,
+                coverPhoto: null,
+            }
+        };
+    }
+
+    const userInfo: UserInfo = {
+        id: userId,
+        email: null, // We don't expose email for privacy
+        phone: userInfoData.phone || null,
+        fullName: userInfoData.full_name || 'Người dùng',
+        address: userInfoData.address || null,
+        gender: userInfoData.gender || null,
+        birthDate: userInfoData.yob ? new Date(userInfoData.yob) : null,
+        avatar: getUserAvatar(userInfoData.avatar),
+        coverPhoto: getUserAvatar(userInfoData.cover_photo),
+    };
+    
     return { success: true, data: userInfo };
 };
 
