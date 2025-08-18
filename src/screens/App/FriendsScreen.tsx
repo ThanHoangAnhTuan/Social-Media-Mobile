@@ -112,7 +112,6 @@ export default function FriendsScreen() {
                 mutualFriends: userItem.mutual_friends || 0,
                 timeAgo: userItem.time_ago || 'Vừa xong',
                 status: (userItem.status || 'pending') as 'pending',
-
             };
         });
 
