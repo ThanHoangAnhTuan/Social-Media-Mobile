@@ -4,7 +4,14 @@ import {
     FEELINGS,
     PRIVACY_OPTIONS,
 } from '@/src/constants/Post';
-import { createPost, deletePost, getPostsByUserId, updatePost } from '@/src/services/post/post';
+import {
+    createPost,
+    deletePost,
+    getAllPosts,
+    getPostsByUserId,
+    updatePost,
+} from '@/src/services/post/post';
+import { useFocusEffect } from '@react-navigation/native';
 import { GetUserProfile } from '@/src/services/user/UserInfo';
 import {
     Comment,
@@ -20,7 +27,6 @@ import {
     Feather,
     Ionicons
 } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -217,35 +223,22 @@ export default function HomeScreen(): JSX.Element {
 
         setLoading(true);
         try {
-            // Lấy posts của user hiện tại
-            const response = await getPostsByUserId(session.user.id);
-            // console.log(JSON.stringify(response, null, 2));
+            const response = await getAllPosts();
+            console.log('getAllPosts response:', response);
 
-            let userPosts: Post[] = [];
-            userPosts = response.success && response.data ? response.data : [];
-
-            const allPosts = [...userPosts, ...mockPosts];
-            // console.log('All posts:', JSON.stringify(allPosts, null, 2));
-
-            // allPosts.sort(
-            //     (a, b) =>
-            //         new Date(b.created_at).getTime() -
-            //         new Date(a.created_at).getTime()
-            // );
-
-            setPosts(allPosts);
-            // console.log(
-            //     'Loaded posts successfully:',
-            //     allPosts.length,
-            //     'posts (',
-            //     userPosts.length,
-            //     'real +',
-            //     mockPosts.length,
-            //     'mock)'
-            // );
+            if (response.success && response.data) {
+                setPosts(response.data);
+                console.log(
+                    'Loaded posts successfully:',
+                    response.data.length,
+                    'posts'
+                );
+            } else {
+                console.error('Error loading posts:', response.error);
+                setPosts(mockPosts);
+            }
         } catch (error) {
             console.error('Error loading posts:', error);
-            // Fallback to mock posts if error
             setPosts(mockPosts);
         } finally {
             setLoading(false);
@@ -289,7 +282,6 @@ export default function HomeScreen(): JSX.Element {
         try {
             const response = await createPost(session!, newPost);
             if (response.success) {
-                // Reload posts from server to get updated list
                 await loadPosts();
                 resetForm();
                 setShowCreateModal(false);
@@ -312,15 +304,13 @@ export default function HomeScreen(): JSX.Element {
         const updateData: UpdatePostData = {
             content: postContent,
             privacy: postPrivacy,
-            media: selectedMedia, // Luôn gửi media, kể cả khi empty array để xóa ảnh
+            media: selectedMedia,
         };
 
-        // Chỉ thêm location nếu có thay đổi hoặc cần xóa
         if (selectedLocation !== undefined) {
             updateData.location = selectedLocation;
         }
 
-        // Chỉ thêm feelingActivity nếu có thay đổi hoặc cần xóa
         if (selectedFeelingActivity !== undefined) {
             updateData.feelingActivity = selectedFeelingActivity;
         }
@@ -332,7 +322,6 @@ export default function HomeScreen(): JSX.Element {
                 session!
             );
             if (response.success) {
-                // Reload posts to get updated data
                 await loadPosts();
                 setShowEditModal(false);
                 setSelectedPost(null);
@@ -427,14 +416,12 @@ export default function HomeScreen(): JSX.Element {
         const renderMediaItem = (item: MediaItem, index: number) => {
             const isVideo = item.type === 'video';
 
-            // Calculate dimensions based on media count
             let itemStyle = {};
             if (media.length === 1) {
                 itemStyle = styles.singleMedia;
             } else if (media.length === 2) {
                 itemStyle = styles.doubleMedia;
             } else if (media.length === 3) {
-                // Layout cho 3 ảnh: 1 ảnh lớn bên trái, 2 ảnh nhỏ bên phải
                 if (index === 0) {
                     itemStyle = styles.tripleMediaMain;
                 } else {
@@ -460,7 +447,6 @@ export default function HomeScreen(): JSX.Element {
                             />
                         </View>
                     )}
-                    {/* Show "+X" overlay for 4th image if there are more than 4 images */}
                     {index === 3 && media.length > 4 && (
                         <View style={styles.moreMediaOverlay}>
                             <Text style={styles.moreMediaText}>
@@ -472,11 +458,9 @@ export default function HomeScreen(): JSX.Element {
             );
         };
 
-        // Render layout cho 3 ảnh
         if (media.length === 3) {
             return (
                 <View style={styles.mediaContainer}>
-                    {/* Ảnh đầu tiên chiếm toàn bộ chiều cao bên trái */}
                     <View style={[styles.mediaItem, styles.tripleMediaMain]}>
                         <Image
                             source={{ uri: media[0].uri }}
@@ -493,7 +477,6 @@ export default function HomeScreen(): JSX.Element {
                             </View>
                         )}
                     </View>
-                    {/* Cột bên phải chứa 2 ảnh còn lại */}
                     <View style={styles.tripleMediaColumn}>
                         {media.slice(1, 3).map((item, index) => (
                             <View

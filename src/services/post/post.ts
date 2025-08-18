@@ -15,7 +15,6 @@ import { ServiceResponse } from '@/src/types/response';
 import * as FileSystem from 'expo-file-system';
 import { getUserAvatar } from '../user/UserInfo';
 
-// Helper function để upload media lên Supabase Storage
 const uploadMediaToStorage = async (
     mediaItems: MediaItem[],
     userId: string
@@ -24,12 +23,10 @@ const uploadMediaToStorage = async (
 
     for (const media of mediaItems) {
         try {
-            // Đọc file từ URI
             const base64 = await FileSystem.readAsStringAsync(media.uri, {
                 encoding: FileSystem.EncodingType.Base64,
             });
 
-            // Tạo tên file unique trong folder posts
             const timestamp = new Date().getTime();
             const fileExtension = media.type === 'image' ? 'jpg' : 'mp4';
             const fileName = `posts/${userId}/${timestamp}_${media.id}.${fileExtension}`;
@@ -47,7 +44,6 @@ const uploadMediaToStorage = async (
                 console.error('Error uploading media:', error);
                 uploadedMedia.push(media);
             } else {
-                // Tạo public URL cho file đã upload
                 const { data: publicUrl } = supabase.storage
                     .from('uploads')
                     .getPublicUrl(fileName);
@@ -95,7 +91,7 @@ const createPost = async (
                 user_id: postData.authorId,
                 content: postData.content,
                 location: postData.location || null,
-                media: uploadedMedia || null, // Sử dụng uploaded media URLs
+                media: uploadedMedia || null,
                 likes: 0,
                 comments: 0,
                 shares: 0,
@@ -119,7 +115,7 @@ const createPost = async (
         const newPost: Post = {
             id: data.id,
             content: data.content,
-            media: uploadedMedia || [], // Sử dụng uploaded media URLs
+            media: uploadedMedia || [],
             location: data.location || null,
             feelingActivity: data.feeling_activity || null,
             privacy: data.privacy || 'public',
@@ -144,46 +140,6 @@ const createPost = async (
         };
     }
 };
-//     postId: number,
-//     updateData: UpdatePostData,
-//     userId?: number
-// ): Promise<ServiceResponse<Post>> => {
-//     try {
-//         let query = supabase
-//             .from('posts')
-//             .update({
-//                 ...updateData,
-//                 updated_at: new Date().toISOString(),
-//             })
-//             .eq('id', postId);
-
-//         // Kiểm tra quyền sở hữu nếu có userId
-//         if (userId) {
-//             query = query.eq('user_id', userId);
-//         }
-
-//         const { data, error } = await query.select().single();
-
-//         if (error) {
-//             return { success: false, error: error.message };
-//         }
-
-//         if (!data) {
-//             return {
-//                 success: false,
-//                 error: 'Không tìm thấy bài post hoặc bạn không có quyền chỉnh sửa',
-//             };
-//         }
-
-//         return { success: true, data };
-//     } catch (error) {
-//         return {
-//             success: false,
-//             error:
-//                 error instanceof Error ? error.message : 'Lỗi không xác định',
-//         };
-//     }
-// };
 
 const updatePost = async (
     postId: string,
@@ -196,7 +152,7 @@ const updatePost = async (
         const updateFields: any = {
             content: updateData.content,
             privacy: updateData.privacy,
-            media: updateData.media, // Luôn update media
+            media: updateData.media,
             updated_at: new Date().toISOString(),
         };
 
@@ -246,7 +202,7 @@ const updatePost = async (
             likes: data.likes || 0,
             comments: data.comments || 0,
             shares: data.shares || 0,
-            isLiked: false, // This should be determined separately
+            isLiked: false,
             createdAt: new Date(data.created_at),
             author: {
                 id: session.user.id,
@@ -278,7 +234,6 @@ const deleteMediaFromStorage = async (
 ): Promise<void> => {
     for (const media of mediaItems) {
         try {
-            // Chỉ xóa nếu là URL từ Supabase Storage
             if (media.uri.includes('supabase')) {
                 const urlParts = media.uri.split(
                     '/storage/v1/object/public/uploads/'
@@ -317,7 +272,6 @@ const deletePost = async (
     try {
         console.log('Deleting post:', postId, 'by user:', session.user.id);
 
-        // Lấy thông tin post trước khi xóa để cleanup media files
         const { data: postData, error: fetchError } = await supabase
             .from('posts')
             .select('media')
@@ -467,7 +421,6 @@ const getPosts = async (
             .select('*')
             .order('created_at', { ascending: false });
 
-        // Áp dụng các filter
         if (options.userId) {
             query = query.eq('userId', options.userId);
         }
@@ -480,7 +433,6 @@ const getPosts = async (
             query = query.eq('postType', options.postType);
         }
 
-        // Pagination
         if (options.limit) {
             query = query.limit(options.limit);
         }
@@ -641,6 +593,79 @@ const decrementShareCount = async (
     }
 };
 
+const getAllPosts = async (): Promise<ServiceResponse<Post[]>> => {
+    try {
+        console.log('Fetching all posts from Supabase...');
+
+        const { data: posts, error: postError } = await supabase
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (postError) {
+            console.error('Error fetching posts:', postError);
+            return { success: false, error: postError.message };
+        }
+
+        if (!posts || posts.length === 0) {
+            console.log('No posts found');
+            return { success: true, data: [] };
+        }
+
+        const userIds = [...new Set(posts.map((post) => post.user_id))];
+
+        // Lấy thông tin users
+        const { data: users, error: userError } = await supabase
+            .from('user_info')
+            .select('id, full_name, avatar')
+            .in('id', userIds);
+
+        if (userError) {
+            console.error('Error fetching users:', userError);
+            return { success: false, error: userError.message };
+        }
+
+        // Tạo map để lookup user info nhanh
+        const userMap = new Map();
+        users?.forEach((user) => {
+            userMap.set(user.id, user);
+        });
+
+        const formattedPosts: Post[] = posts.map((post) => {
+            const userInfo = userMap.get(post.user_id);
+
+            return {
+                id: post.id,
+                content: post.content,
+                media: post.media || [],
+                location: post.location || null,
+                feelingActivity: post.feeling_activity || null,
+                privacy: post.privacy || 'public',
+                likes: post.likes || 0,
+                comments: post.comments || 0,
+                shares: post.shares || 0,
+                isLiked: false,
+                createdAt: new Date(post.created_at),
+                author: {
+                    id: post.user_id,
+                    name: userInfo?.full_name || 'Unknown User',
+                    avatar: getUserAvatar(userInfo?.avatar) || '',
+                },
+            };
+        });
+
+        console.log(`Fetched ${formattedPosts.length} posts successfully`);
+        return { success: true, data: formattedPosts };
+    } catch (error) {
+        console.error('Error in getAllPosts:', error);
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
 const getPostsByUserId = async (
     userId: string
 ): Promise<ServiceResponse<Post[]>> => {
@@ -674,17 +699,17 @@ const getPostsByUserId = async (
                 created_at_type: typeof post.created_at,
                 updated_at_type: typeof post.updated_at
             });
-            
+
             const createdAt = post.created_at ? new Date(post.created_at) : new Date();
             const updatedAt = post.updated_at ? new Date(post.updated_at) : undefined;
-            
+
             console.log('Processed dates:', {
                 createdAt,
                 updatedAt,
                 createdAtValid: !isNaN(createdAt.getTime()),
                 updatedAtValid: updatedAt ? !isNaN(updatedAt.getTime()) : 'undefined'
             });
-            
+
             return {
                 id: post.id,
                 content: post.content,
@@ -749,7 +774,20 @@ const createSmartUpdateData = (
 };
 
 export {
-    changePrivacyLevel, createPost, createSmartUpdateData, decrementCommentCount, decrementLikeCount, decrementShareCount, deletePost, getPostById,
+    createPost,
+    updatePost,
+    deletePost,
+    hardDeletePost,
+    changePrivacyLevel,
+    getPostById,
     getPosts,
-    getPostsByUserId, hardDeletePost, incrementCommentCount, incrementLikeCount, incrementShareCount, updatePost
+    getAllPosts,
+    getPostsByUserId,
+    incrementLikeCount,
+    decrementLikeCount,
+    incrementCommentCount,
+    incrementShareCount,
+    decrementShareCount,
+    decrementCommentCount,
+    createSmartUpdateData,
 };
