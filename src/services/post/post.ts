@@ -6,9 +6,6 @@ import {
     Post,
     PostsFilterOptions,
     UpdatePostData,
-    // PostsFilterOptions,
-    // ServiceResponse,
-    // UpdatePostData,
 } from '@/src/types/post';
 import { ServiceResponse } from '@/src/types/response';
 
@@ -115,7 +112,7 @@ const deletePost = async (
         let query = supabase
             .from('posts')
             .update({
-                is_active: false,
+                // is_active: false,
                 updated_at: new Date().toISOString(),
             })
             .eq('id', postId);
@@ -224,7 +221,7 @@ const getPostById = async (postId: number): Promise<ServiceResponse<Post>> => {
             .from('posts')
             .select('*')
             .eq('id', postId)
-            .eq('is_active', true)
+            // .eq('is_active', true)
             .single();
 
         if (error) {
@@ -246,7 +243,7 @@ const getPosts = async (
         userId: 0,
         privacyLevel: 'public',
         postType: 'text',
-        isActive: true,
+        // isActive: true,
         limit: 10,
         offset: 0,
     }
@@ -255,7 +252,7 @@ const getPosts = async (
         let query = supabase
             .from('posts')
             .select('*')
-            .eq('isActive', options.isActive ?? true)
+            // .eq('isActive', options.isActive ?? true)
             .order('created_at', { ascending: false });
 
         // Áp dụng các filter
@@ -437,18 +434,94 @@ const decrementShareCount = async (
     }
 };
 
-export {
-    createPost,
-    updatePost,
-    deletePost,
-    hardDeletePost,
-    changePrivacyLevel,
-    getPostById,
-    getPosts,
-    incrementLikeCount,
-    decrementLikeCount,
-    incrementCommentCount,
-    incrementShareCount,
-    decrementShareCount,
-    decrementCommentCount,
+// Get posts by specific user
+const getUserPosts = async (
+    userId: string,
+    options: {
+        limit?: number;
+        offset?: number;
+        privacyLevel?: 'public' | 'friends' | 'private';
+    } = {}
+): Promise<ServiceResponse<Post[]>> => {
+    try {
+        // First try with the full join query
+        let query = supabase
+            .from('posts')
+            .select(`
+                id,
+                content,
+                media,
+                location,
+                feeling_activity,
+                privacy,
+                likes,
+                comments,
+                shares,
+                created_at,
+                user_id
+            `)
+            .eq('user_id', userId)
+            // .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+        // Apply privacy filter if specified
+        if (options.privacyLevel) {
+            query = query.eq('privacy', options.privacyLevel);
+        }
+
+        // Apply pagination
+        if (options.limit) {
+            query = query.limit(options.limit);
+        }
+
+        if (options.offset) {
+            query = query.range(
+                options.offset,
+                options.offset + (options.limit || 10) - 1
+            );
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('Error fetching user posts:', error);
+            return { success: false, error: error.message };
+        }
+
+        // Transform data to match Post interface
+        const posts: Post[] = (data || []).map((item: any) => ({
+            id: item.id.toString(),
+            content: item.content || '',
+            media: item.media || [],
+            location: item.location || null,
+            feelingActivity: item.feeling_activity || null,
+            privacy: item.privacy || 'public',
+            likes: item.likes || 0,
+            comments: item.comments || 0,
+            shares: item.shares || 0,
+            isLiked: false, // This would need to be checked based on current user likes
+            createdAt: new Date(item.created_at),
+            author: {
+                id: item.user_id,
+                name: 'Người dùng', // This should be fetched separately or from user metadata
+                avatar: `https://ui-avatars.com/api/?name=U&background=6366f1&color=ffffff`,
+            },
+        }));
+
+        return { success: true, data: posts };
+    } catch (error) {
+        console.error('Error in getUserPosts:', error);
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
 };
+
+export {
+    changePrivacyLevel, createPost, decrementCommentCount, decrementLikeCount, decrementShareCount, deletePost, getPostById,
+    getPosts,
+    getUserPosts, hardDeletePost, incrementCommentCount, incrementLikeCount, incrementShareCount, updatePost
+};
+

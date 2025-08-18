@@ -3,8 +3,8 @@ import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import RootNavigator from '@navigation/RootNavigator';
 import { AuthProvider } from '@context/AuthContext';
+import RootNavigator from '@navigation/RootNavigator';
 
 export default function App() {
     return (

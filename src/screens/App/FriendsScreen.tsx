@@ -1,12 +1,12 @@
 import { SUPABASE_URL } from '@/src/constants/Supabase';
 import { supabase } from '@/src/lib/supabase';
-import { AddFriendRequest } from '@/src/services/friend/friend';
+import { acceptFriendRequest, removeFriend } from '@/src/services/friend/friend';
 import { FriendRequest } from '@/src/types/friend';
 import { FriendsStackParamList } from '@/src/types/route';
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     FlatList,
     Image,
@@ -24,91 +24,109 @@ type FriendsScreenNavigationProp = NativeStackNavigationProp<
 export default function FriendsScreen() {
     const navigation = useNavigation<FriendsScreenNavigationProp>();
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+    const [currentUserId, setCurrentUserId] = useState<string>('');
 
-    const handleAcceptRequest = (request: FriendRequest) => {
-        AddFriendRequest(
-            request.addressee_id,
-            request.requester_id,
-            'accepted',
-        );
-        if (request.status === 'pending') {
+    const handleAcceptRequest = async (request: FriendRequest) => {
+        console.log("Accepting friend request:", request.id);
+        const success = await acceptFriendRequest(request.id);
+        console.log("Accept friend request success:", success);
+        if (success) {
             setFriendRequests((prevRequests) =>
                 prevRequests.filter((req) => req.id !== request.id)
             );
-
+            await fetchFriendRequests();
         }
         // console.log('Accepted friend request with ID:', request.id);
         // console.log('Friend request accepted:', request.addressee_id);
     };
 
-    const handleDeclineRequest = (request: FriendRequest) => {
-        AddFriendRequest(
-            request.addressee_id,
-            request.requester_id,
-            'declined',
-        );
+    const handleDeclineRequest = async (request: FriendRequest) => {
+        const success = await removeFriend(request.id);
+        if (success) {
+            setFriendRequests((prevRequests) =>
+                prevRequests.filter((req) => req.id !== request.id)
+            );
+            await fetchFriendRequests();
+        }
+        // console.log('Friend request declined:', request.addressee_id);
         // console.log('Declined friend request with ID:', request.id);
     };
-    useEffect(() => {
-        const fetchFriendRequests = async () => {
-            const { data: userInfoList, error } = await supabase
-                .from('user_info')
-                .select('*')
-                .order('created_at', { ascending: false });
-            console.log("user", userInfoList);
-            if (error) {
-                console.error('Error fetching friend requests:', error);
-                return;
-            }
-            const { data: { user }, error: userError, } = await supabase.auth.getUser();
+    const fetchFriendRequests = async () => {
+        const { data: { user }, error: userError, } = await supabase.auth.getUser();
 
-            if (userError || !user) {
-                console.error('Error getting current user:', userError);
-                return;
-            }
+        if (userError || !user) {
+            console.error('Error getting current user:', userError);
+            return;
+        }
+        setCurrentUserId(user.id);
+        const currentUserId = user.id;
+        console.log("Current User ID:", currentUserId);
+        const supabaseUrl = SUPABASE_URL;
+        const { data: userInfoList, error } = await supabase
+            .from('friendships')
+            .select(`id,
+                requester_id,
+                addressee_id,
+                status,
+                created_at,
+                requester:user_info!friendships_requester_id_fkey (
+                id, full_name, avatar
+        )`)
+            .eq('addressee_id', currentUserId)
+            .or('status.eq.pending,status.is.null')
+            .order('created_at', { ascending: false });
 
-            const currentUserId = user.id;
-            const supabaseUrl = SUPABASE_URL;
-            const bucket = 'uploads';
+        console.log("Query executed with addressee_id:", currentUserId);
+        console.log("Friend requests query result:", userInfoList);
+        console.log("Query error:", error);
+        if (error) {
+            console.error('Error fetching friend requests:', error);
+            return;
+        }
+        const bucket = 'uploads';
 
-            const formattedRequests = userInfoList.map((userItem: any) => {
-                let avatarSource;
+        const formattedRequests = userInfoList.map((userItem: any) => {
+            let avatarSource;
 
-                if (userItem.avatar?.startsWith('http')) {
-                    avatarSource = { uri: userItem.avatar };
-                } else if (userItem.avatar) {
-                    avatarSource = {
-                        uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${userItem.avatar}`,
-                    };
-                } else {
-                    avatarSource = require('../../../assets/avatar.png');
-                }
-
-                return {
-                    id: userItem.id,
-                    createdAt: userItem.created_at || new Date().toISOString(),
-                    requester_id: userItem.id,
-                    addressee_id: currentUserId,
-                    fullname: userItem.full_name,
-                    avatar: avatarSource,
-                    mutualFriends: userItem.mutual_friends || 0,
-                    timeAgo: userItem.time_ago || 'Vừa xong',
-                    status: 'pending' as 'pending',
-
+            if (userItem.avatar?.startsWith('http')) {
+                avatarSource = { uri: userItem.avatar };
+            } else if (userItem.avatar) {
+                avatarSource = {
+                    uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${userItem.avatar}`,
                 };
-            });
+            } else {
+                avatarSource = require('../../../assets/avatar.png');
+            }
 
-            setFriendRequests(formattedRequests);
-        };
+            return {
+                id: userItem.id,
+                createdAt: userItem.created_at || new Date().toISOString(),
+                requester_id: userItem.requester.id,
+                addressee_id: currentUserId,
+                fullname: userItem.requester.full_name,
+                avatar: avatarSource,
+                mutualFriends: userItem.mutual_friends || 0,
+                timeAgo: userItem.time_ago || 'Vừa xong',
+                status: (userItem.status || 'pending') as 'pending',
 
-        fetchFriendRequests();
-    }, []);
+            };
+        });
+
+        console.log("Formatted friend requests:", formattedRequests);
+        console.log("Number of friend requests found:", formattedRequests.length);
+        setFriendRequests(formattedRequests);
+    };
+    useFocusEffect(
+        useCallback(() => {
+            fetchFriendRequests();
+        }, [])
+    );
 
     const renderFriendRequest = ({ item }: { item: FriendRequest }) => (
         <View style={styles.requestItem}>
-            <TouchableOpacity onPress={() => navigation.navigate('PersonalScreen', { userId: item.requester_id })}>
+            <TouchableOpacity onPress={() => navigation.navigate('PersonalContent', { userId: item.requester_id })}>
                 <Image source={item.avatar} style={styles.avatar} />
-            
+
             </TouchableOpacity>
             <View style={styles.requestInfo}>
                 <Text style={styles.name}>{item.fullname}</Text>
@@ -148,7 +166,7 @@ export default function FriendsScreen() {
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Lời mời kết bạn</Text>
                 <TouchableOpacity
-                    onPress={() => navigation.navigate('FriendsRequest')}
+                    onPress={() => navigation.navigate('FriendsRequest', { currentUserId, friendRequests })}
                 >
                     <Text style={styles.seeAllText}>Xem tất cả</Text>
                 </TouchableOpacity>

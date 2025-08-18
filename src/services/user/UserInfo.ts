@@ -106,6 +106,87 @@ export const UpdateUserAvatar = async (
     }
 };
 
+export const UpdateUserCoverPhoto = async (
+    session: Session,
+    imageUri: string
+): Promise<ServiceResponse<string>> => {
+    const userId = session?.user?.id;
+    if (!userId) {
+        throw new Error('No user ID found in session');
+    }
+    try {
+        const userId = session.user.id;
+
+        // Get old cover photo to delete
+        const { data: oldCoverData, error: oldCoverError } = await supabase
+            .from('user_info')
+            .select('cover_photo')
+            .eq('id', userId)
+            .single();
+        if (oldCoverError) {
+            console.error('Error fetching old cover photo:', oldCoverError);
+        }
+        if (oldCoverData?.cover_photo) {
+            const { error: deleteError } = await supabase.storage
+                .from('uploads')
+                .remove([oldCoverData.cover_photo]);
+            if (deleteError) {
+                console.error('Error deleting old cover photo:', deleteError);
+            }
+        }
+
+        const random = new Date().getTime();
+        // Store cover photos in covers/ folder
+        let fileName = `avatars/${random}.png`;
+        const fileBase64 = await FileSystem.readAsStringAsync(imageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+        let imageData = decode(fileBase64);
+        let { data, error } = await supabase.storage
+            .from('uploads')
+            .upload(`${fileName}`, imageData, {
+                contentType: 'image/*',
+                upsert: true,
+                cacheControl: '3600',
+            });
+
+        if (error) {
+            console.error('Error uploading cover photo:', error);
+            return {
+                success: false,
+                error: 'Đã xảy ra lỗi khi tải ảnh bìa lên! Vui lòng thử lại sau.',
+            };
+        }
+
+        // Save cover photo path to database
+        const { error: updateError } = await supabase.from('user_info').upsert(
+            {
+                id: userId,
+                cover_photo: data?.path || null,
+            },
+            { onConflict: 'id' }
+        );
+        if (updateError) {
+            console.error('Error updating user cover photo:', updateError);
+            return {
+                success: false,
+                error: 'Đã xảy ra lỗi khi cập nhật ảnh bìa! Vui lòng thử lại sau.',
+            };
+        }
+
+        return {
+            data: getSupabaseAvatarUrl(data?.path ?? '') ?? '',
+            success: true,
+        };
+    } catch (error) {
+        console.error('Error updating user cover photo:', error);
+        return {
+            success: false,
+            error: 'Đã xảy ra lỗi khi cập nhật ảnh bìa! Vui lòng thử lại sau.',
+        };
+    }
+};
+
 export const GetUserProfile = async (
     session: Session
 ): Promise<ServiceResponse<UserInfo>> => {
@@ -139,9 +220,63 @@ export const GetUserProfile = async (
             getSupabaseAvatarUrl(data?.avatar) ||
             session.user.user_metadata?.avatar_url ||
             null,
+        coverPhoto: getSupabaseAvatarUrl(data?.cover_photo) || null,
     };
 
     return { success: true, data: userInfo };
+};
+
+export const GetUserProfileById = async (
+    userId: string
+): Promise<ServiceResponse<UserInfo>> => {
+    if (!userId) {
+        return { success: false, error: 'No user ID provided' };
+    }
+
+    try {
+        // Get user info from user_info table
+        const { data: userInfoData, error: userInfoError } = await supabase
+            .from('user_info')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (userInfoError) {
+            console.error('Error fetching user info:', userInfoError);
+        }
+
+        // Get basic user data from auth.users table (if accessible)
+        // Note: This might not work depending on RLS policies
+        const { data: authData, error: authError } = await supabase
+            .from('profiles') // Assuming you have a profiles table or view
+            .select('email, full_name, avatar_url')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (authError) {
+            console.error('Error fetching auth data:', authError);
+        }
+
+        const userInfo: UserInfo = {
+            id: userId,
+            email: authData?.email || null,
+            phone: userInfoData?.phone || null,
+            fullName: userInfoData?.full_name || authData?.full_name || 'Người dùng',
+            address: userInfoData?.address || null,
+            gender: userInfoData?.gender || null,
+            birthDate: userInfoData?.yob ? new Date(userInfoData.yob) : null,
+            avatar: getSupabaseAvatarUrl(userInfoData?.avatar) || authData?.avatar_url || null,
+            coverPhoto: getSupabaseAvatarUrl(userInfoData?.cover_photo) || null,
+        };
+
+        return { success: true, data: userInfo };
+    } catch (error) {
+        console.error('Error in GetUserProfileById:', error);
+        return {
+            success: false,
+            error: 'Failed to fetch user profile',
+        };
+    }
 };
 
 export const getSupabaseAvatarUrl = (

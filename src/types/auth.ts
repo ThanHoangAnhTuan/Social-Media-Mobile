@@ -5,6 +5,7 @@ export interface UpdateUserInfo {
     address: string | null;
     gender: string | null;
     avatar?: string | null;
+    coverPhoto?: string | null;
     birthDate: Date | null;
 }
 
@@ -17,4 +18,5 @@ export interface UserInfo {
     gender: string | null;
     birthDate: Date | null;
     avatar: string | null;
+    coverPhoto: string | null;
 }

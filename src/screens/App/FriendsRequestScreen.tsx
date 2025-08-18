@@ -1,11 +1,9 @@
-import { SUPABASE_URL } from '@/src/constants/Supabase';
-import { supabase } from '@/src/lib/supabase';
-import { AddFriendRequest } from '@/src/services/friend/friend';
+import { acceptFriendRequest, removeFriend } from '@/src/services/friend/friend';
 import { FriendRequest } from '@/src/types/friend';
 import { FriendsStackParamList } from '@/src/types/route';
 import { Feather } from '@expo/vector-icons';
 import AntDesign from '@expo/vector-icons/AntDesign';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import {
@@ -24,85 +22,40 @@ type FriendsRequestScreenNavigationProp = NativeStackNavigationProp<
 
 const FriendsRequestScreen = () => {
     const navigation = useNavigation<FriendsRequestScreenNavigationProp>();
-    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
-    const handleAcceptRequest = (request: FriendRequest) => {
-        AddFriendRequest(
-            request.requester_id,
-            request.addressee_id,
-            'accepted',
-        );
-        if (request.status === 'pending') {
+    const route = useRoute();
+    const { currentUserId, friendRequests: initialFriendRequests } = route.params as {
+        currentUserId: string;
+        friendRequests: FriendRequest[];
+    };
+
+    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(initialFriendRequests);
+    const [isUsingInitialData, setIsUsingInitialData] = useState(true);
+
+    const handleAcceptRequest = async (request: FriendRequest) => {
+        const success = await acceptFriendRequest(request.id);
+        if (success) {
             setFriendRequests((prevRequests) =>
                 prevRequests.filter((req) => req.id !== request.id)
             );
-
         }
         // console.log('Accepted friend request with ID:', request.id);
         // console.log('Friend request accepted:', request.addressee_id);
     };
 
-    const handleDeclineRequest = (request: FriendRequest) => {
-        AddFriendRequest(
-            request.requester_id,
-            request.addressee_id,
-            'declined',
-        );
-        // console.log('Declined friend request with ID:', request.id);
+    const handleDeclineRequest = async (request: FriendRequest) => {
+        const success = await removeFriend(request.id);
+        if (success) {
+            setFriendRequests((prevRequests) =>
+                prevRequests.filter((req) => req.id !== request.id)
+            );
+        }
     };
+
     useEffect(() => {
-        const fetchFriendRequests = async () => {
-            const { data: userInfoList, error } = await supabase
-                .from('user_info')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('Error fetching friend requests:', error);
-                return;
-            }
-            const { data: { user }, error: userError, } = await supabase.auth.getUser();
-
-            if (userError || !user) {
-                console.error('Error getting current user:', userError);
-                return;
-            }
-
-            const currentUserId = user.id;
-            const supabaseUrl = SUPABASE_URL;
-            const bucket = 'uploads';
-
-            const formattedRequests = userInfoList.map((userItem: any) => {
-                let avatarSource;
-
-                if (userItem.avatar?.startsWith('http')) {
-                    avatarSource = { uri: userItem.avatar };
-                } else if (userItem.avatar) {
-                    avatarSource = {
-                        uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${userItem.avatar}`,
-                    };
-                } else {
-                    avatarSource = require('../../../assets/avatar.png');
-                }
-
-                return {
-                    id: userItem.id,
-                    createdAt: userItem.created_at || new Date().toISOString(),
-                    requester_id: userItem.id,
-                    addressee_id: currentUserId,
-                    fullname: userItem.full_name,
-                    avatar: avatarSource,
-                    mutualFriends: userItem.mutual_friends || 0,
-                    timeAgo: userItem.time_ago || 'Vừa xong',
-                    status: 'pending' as 'pending',
-
-                };
-            });
-
-            setFriendRequests(formattedRequests);
-        };
-
-        fetchFriendRequests();
-    }, []);
+        if (isUsingInitialData) {
+            setFriendRequests(initialFriendRequests);
+        }
+    }, [isUsingInitialData]);
 
     const renderFriendRequest = ({ item }: { item: FriendRequest }) => (
         <View style={styles.requestItem}>

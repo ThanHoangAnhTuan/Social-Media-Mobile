@@ -9,13 +9,13 @@ import NotificationsScreen from '@screens/App/NotificationsScreen';
 import React from 'react';
 import PersonalScreen from '../screens/App/PersonalScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
-import { FriendsStackParamList, TabParamList } from '../types/route';
+import { FriendsStackParamList, ProfileStackParamList, TabParamList } from '../types/route';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const HomeStack = createNativeStackNavigator();
 const FriendsStack = createNativeStackNavigator<FriendsStackParamList>();
 const NotificationStack = createNativeStackNavigator();
-const ProfileStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 const PersonalStack = createNativeStackNavigator();
 
 export const HomeStackScreen = () => {
@@ -38,9 +38,9 @@ export const FriendsStackScreen = () => {
                 component={FriendsRequestScreen}
             />
             <FriendsStack.Screen
-                name="PersonalScreen"
+                name="PersonalContent"
                 component={PersonalScreen}
-                options={{ headerShown: false, title: 'Personal Profile' }}
+                options={{  title: 'Personal Profile' }}
             />
         </FriendsStack.Navigator>
     );
@@ -48,11 +48,16 @@ export const FriendsStackScreen = () => {
 
 const ProfileStackScreen = () => {
     return (
-        <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+        <ProfileStack.Navigator screenOptions={{ headerShown: false }} initialRouteName='ProfileContent'>
+            <ProfileStack.Screen
+                name="Personal"
+                component={PersonalScreen}
+            />
             <ProfileStack.Screen
                 name="ProfileContent"
                 component={ProfileScreen}
             />
+
         </ProfileStack.Navigator>
     );
 };
@@ -111,7 +116,7 @@ export default function TabsNavigator() {
                 component={ProfileStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <MaterialIcons name="person" size={24} color={color} />
+                        <MaterialIcons name="menu" size={24} color={color} />
                     ),
                 }}
             />

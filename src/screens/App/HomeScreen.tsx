@@ -19,7 +19,7 @@ import {
     Feather,
     Ionicons
 } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -60,6 +60,7 @@ export default function HomeScreen(): JSX.Element {
     const [showFeelingPicker, setShowFeelingPicker] = useState<boolean>(false);
     const [showBackgroundPicker, setShowBackgroundPicker] =
         useState<boolean>(false);
+    const navigation = useNavigation();
 
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
     const [comments, setComments] = useState<Comment[]>([]);
@@ -87,7 +88,7 @@ export default function HomeScreen(): JSX.Element {
                 throw new Error('Không tìm thấy thông tin người dùng.');
             }
             setAvatar(avatarData);
-            console.log('Fetched user profile:', avatarData);
+            // console.log('Fetched user profile:', avatarData);
         } catch (error) {
             console.error('Error fetching user profile:', error);
         } finally {
@@ -466,15 +467,29 @@ export default function HomeScreen(): JSX.Element {
                 {/* Post Header */}
                 <View style={[styles.postHeader, { borderRadius: 12 }]}>
                     <View style={styles.authorInfo}>
-                        <Image
-                            source={{ uri: post.author.avatar }}
-                            style={styles.authorAvatar}
-                        />
+                        <TouchableOpacity
+                            onPress={() => {
+                                // Navigate to Personal screen with the author's userId
+                                (navigation as any).navigate('Personal', { userId: post.author.id });
+                            }}
+                        >
+                            <Image
+                                source={{ uri: post.author.avatar }}
+                                style={styles.authorAvatar}
+                            />
+                        </TouchableOpacity>
+
                         <View style={styles.authorDetails}>
                             <View style={styles.authorNameContainer}>
-                                <Text style={[styles.authorName]}>
-                                    {post.author.name}
-                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        (navigation as any).navigate('Personal', { userId: post.author.id });
+                                    }}
+                                >
+                                    <Text style={[styles.authorName]}>
+                                        {post.author.name}
+                                    </Text>
+                                </TouchableOpacity>
                                 {post.feelingActivity && (
                                     <Text style={[styles.feelingText]}>
                                         {post.feelingActivity.type === 'feeling'
@@ -692,15 +707,27 @@ export default function HomeScreen(): JSX.Element {
 
     const renderComment = ({ item: comment }: { item: Comment }) => (
         <View style={styles.commentItem}>
-            <Image
-                source={{ uri: comment.author.avatar }}
-                style={styles.commentAvatar}
-            />
+            <TouchableOpacity
+                onPress={() => {
+                    (navigation as any).navigate('Personal', { userId: comment.author.id });
+                }}
+            >
+                <Image
+                    source={{ uri: comment.author.avatar }}
+                    style={styles.commentAvatar}
+                />
+            </TouchableOpacity>
             <View style={styles.commentContent}>
                 <View style={styles.commentBubble}>
-                    <Text style={styles.commentAuthor}>
-                        {comment.author.name}
-                    </Text>
+                    <TouchableOpacity
+                        onPress={() => {
+                            (navigation as any).navigate('Personal', { userId: comment.author.id });
+                        }}
+                    >
+                        <Text style={styles.commentAuthor}>
+                            {comment.author.name}
+                        </Text>
+                    </TouchableOpacity>
                     <Text style={styles.commentText}>{comment.content}</Text>
                 </View>
                 <Text style={styles.commentDate}>

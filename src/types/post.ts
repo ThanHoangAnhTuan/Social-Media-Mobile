@@ -11,7 +11,7 @@ export interface PostsFilterOptions {
     userId: number;
     privacyLevel: 'public' | 'friends' | 'private';
     postType: 'text' | 'image' | 'video' | 'link';
-    isActive: boolean;
+    // isActive: boolean;
     limit: number;
     offset: number;
 }
