@@ -170,7 +170,7 @@ export default function EditProfileScreen(): JSX.Element {
                     aspect: [4, 3],
                     quality: 1,
                 });
-                console.log('ImagePicker camera result:', result);
+                // console.log('ImagePicker camera result:', result);
             } else {
                 // Xin quyền thư viện ảnh
                 const { status } =
@@ -186,10 +186,10 @@ export default function EditProfileScreen(): JSX.Element {
                     aspect: [4, 3],
                     quality: 1,
                 });
-                console.log('ImagePicker library result:', result);
+                // console.log('ImagePicker library result:', result);
             }
 
-            console.log(result);
+            // console.log(result);
 
             if (!result.canceled && result.assets[0]) {
                 await handleUpdateAvatar(result.assets[0].uri);

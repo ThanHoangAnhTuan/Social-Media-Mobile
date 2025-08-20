@@ -12,7 +12,7 @@ export default function FacebookLoginButton() {
             console.error('Facebook sign-in error: ', error);
             return;
         }
-        console.log('Facebook sign-in data: ', data);
+        // console.log('Facebook sign-in data: ', data);
     }
 
     return (

@@ -28,7 +28,7 @@ const CustomDrawerContent = (props: DrawerContentComponentProps) => {
                 return;
             }
             setProfile(response.data as UserInfo);
-            console.log('Fetched user profile:', response.data);
+            // console.log('Fetched user profile:', response.data);
         } catch (error) {
             console.error('Error fetching user profile:', error);
         } finally {

@@ -3,9 +3,9 @@ import { FriendRequest } from '@/src/types/friend';
 import { FriendsStackParamList } from '@/src/types/route';
 import { Feather } from '@expo/vector-icons';
 import AntDesign from '@expo/vector-icons/AntDesign';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     FlatList,
     Image,
@@ -22,10 +22,11 @@ type FriendsRequestScreenNavigationProp = NativeStackNavigationProp<
 
 const FriendsRequestScreen = () => {
     const navigation = useNavigation<FriendsRequestScreenNavigationProp>();
-    const route = useRoute();
-    const { currentUserId, friendRequests: initialFriendRequests } = route.params as {
+    const route = useRoute<any>();
+    const { currentUserId, friendRequests: initialFriendRequests, fromNotification } = route.params as {
         currentUserId: string;
         friendRequests: FriendRequest[];
+        fromNotification?: boolean;
     };
 
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(initialFriendRequests);
@@ -51,11 +52,13 @@ const FriendsRequestScreen = () => {
         }
     };
 
-    useEffect(() => {
-        if (isUsingInitialData) {
-            setFriendRequests(initialFriendRequests);
-        }
-    }, [isUsingInitialData]);
+    useFocusEffect(
+        useCallback(() => {
+            if (isUsingInitialData) {
+                setFriendRequests(initialFriendRequests);
+            }
+        }, [isUsingInitialData])
+    );
 
     const renderFriendRequest = ({ item }: { item: FriendRequest }) => (
         <View style={styles.requestItem}>
@@ -98,7 +101,7 @@ const FriendsRequestScreen = () => {
             <View style={styles.header}>
                 <TouchableOpacity
                     onPress={() => {
-                        console.log('Back Back');
+                        // console.log('Back Back');
                         navigation.goBack();
                     }}
                     style={styles.backButton}
