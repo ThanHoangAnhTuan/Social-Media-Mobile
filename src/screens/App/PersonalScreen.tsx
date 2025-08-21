@@ -9,6 +9,7 @@ import {
     Image,
     Modal,
     RefreshControl,
+    ScrollView,
     Share,
     StyleSheet,
     Text,
@@ -28,10 +29,9 @@ import { UpdateUserInfo, UserInfo } from '@/src/types/auth';
 import { Comment, MediaItem, Post } from '@/src/types/post';
 import { FriendsStackParamList, ProfileStackParamList } from '@/src/types/route';
 import * as ImagePicker from 'expo-image-picker';
-import { ScrollView } from 'react-native-gesture-handler';
 
 // Debug: Check if GetUserProfileById is imported correctly
-console.log('GetUserProfileById function:', typeof GetUserProfileById);
+// console.log('GetUserProfileById function:', typeof GetUserProfileById);
 
 const { width: screenWidth } = Dimensions.get('window');
 const photoSize = (screenWidth - 6) / 3; // 3 columns with 2px margin
@@ -86,33 +86,33 @@ export default function PersonalScreen(): JSX.Element {
     // Fetch user profile and posts
     const fetchUserProfile = async (session: Session) => {
         try {
-            console.log('fetchUserProfile called for userId:', targetUserId, 'isOwnProfile:', isOwnProfile);
-            console.log('UserService:', Object.keys(UserService));
-            console.log('GetUserProfileById direct:', typeof GetUserProfileById);
-            console.log('UserService.GetUserProfileById:', typeof UserService.GetUserProfileById);
-            
+            // console.log('fetchUserProfile called for userId:', targetUserId, 'isOwnProfile:', isOwnProfile);
+            // console.log('UserService:', Object.keys(UserService));
+            // console.log('GetUserProfileById direct:', typeof GetUserProfileById);
+            // console.log('UserService.GetUserProfileById:', typeof UserService.GetUserProfileById);
+
             if (isOwnProfile) {
                 const response = await GetUserProfile(session);
                 if (response.success && response.data) {
-                    console.log('Own profile loaded successfully:', response.data.fullName);
+                    // console.log('Own profile loaded successfully:', response.data.fullName);
                     setUserProfile(response.data);
                 }
             } else {
                 // Lấy thông tin user khác theo userId
                 if (targetUserId) {
-                    console.log('Fetching profile for other user:', targetUserId);
-                    
+                    // console.log('Fetching profile for other user:', targetUserId);
+
                     // Try both ways to call the function
                     let response;
                     try {
                         response = await GetUserProfileById(targetUserId);
                     } catch (error) {
-                        console.log('Direct import failed, trying UserService import:', error);
+                        // console.log('Direct import failed, trying UserService import:', error);
                         response = await UserService.GetUserProfileById(targetUserId);
                     }
-                    
+
                     if (response.success && response.data) {
-                        console.log('Other user profile loaded successfully:', response.data.fullName);
+                        // console.log('Other user profile loaded successfully:', response.data.fullName);
                         setUserProfile(response.data);
                     } else {
                         console.error('Error fetching user profile by ID:', response.error);
@@ -352,7 +352,7 @@ export default function PersonalScreen(): JSX.Element {
                     aspect: [4, 3],
                     quality: 1,
                 });
-                console.log('ImagePicker camera result:', result);
+                // console.log('ImagePicker camera result:', result);
             } else {
                 // Xin quyền thư viện ảnh
                 const { status } =
@@ -368,10 +368,10 @@ export default function PersonalScreen(): JSX.Element {
                     aspect: [4, 3],
                     quality: 1,
                 });
-                console.log('ImagePicker library result:', result);
+                // console.log('ImagePicker library result:', result);
             }
 
-            console.log(result);
+            // console.log(result);
 
             if (!result.canceled && result.assets[0]) {
                 if (imagePickerType === 'avatar') {
@@ -394,7 +394,7 @@ export default function PersonalScreen(): JSX.Element {
 
         setAvatarLoading(true);
         try {
-            console.log('Uploading new avatar:', imageUri);
+            // console.log('Uploading new avatar:', imageUri);
             const response = await UpdateUserAvatar(session, imageUri);
             const fullPath = response.data;
 
@@ -625,7 +625,7 @@ export default function PersonalScreen(): JSX.Element {
 
     const formatDate = (date: Date | string | undefined | null) => {
         console.log('formatDate input:', { date, type: typeof date });
-        
+
         if (!date) {
             console.log('formatDate: No date provided');
             return 'Không có thông tin thời gian';
@@ -653,7 +653,7 @@ export default function PersonalScreen(): JSX.Element {
             hour: '2-digit',
             minute: '2-digit',
         });
-        
+
         console.log('formatDate result:', result);
         return result;
     };    // renderPhotoGrid function removed - using FlatList directly
@@ -897,7 +897,7 @@ export default function PersonalScreen(): JSX.Element {
                                     <Text style={styles.profileName}>
                                         {userProfile?.fullName ||
                                             session?.user?.user_metadata?.full_name ||
-                                            'Uyên Uyên'}
+                                            'Người dùng khác'}
                                     </Text>
                                     <Text style={styles.friendsCount}>{friendsCount} người bạn</Text>
                                 </View>
@@ -1002,6 +1002,7 @@ export default function PersonalScreen(): JSX.Element {
                         </View>
                     ) : activeTab === 'posts' ? (
                         <FlatList
+                            key="posts-list" // Add unique key for posts list
                             data={posts}
                             keyExtractor={(item) => item.id}
                             renderItem={renderPost}
@@ -1020,6 +1021,7 @@ export default function PersonalScreen(): JSX.Element {
                         />
                     ) : (
                         <FlatList
+                            key="photos-grid" // Add unique key for photos grid
                             data={userPhotos}
                             numColumns={3}
                             keyExtractor={(item, index) => `photo-${index}`}
@@ -1781,7 +1783,7 @@ const styles = StyleSheet.create({
         gap: 6,
         // flex: 1,
         width: '70%',
-        marginLeft:5,
+        marginLeft: 5,
     },
     acceptFriendButtonText: {
         color: '#fff',

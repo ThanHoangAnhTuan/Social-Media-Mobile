@@ -1,21 +1,28 @@
+import { SUPABASE_URL } from '@/src/constants/Supabase';
 import { AuthContext } from '@/src/context/AuthContext';
+import { useNotification } from '@/src/context/NotificationContext';
+import { supabase } from '@/src/lib/supabase'; // file config supabase
+import { getFriendRequests } from '@/src/services/friend/friend';
+import { getNotifications, markNotificationAsRead } from '@/src/services/notification/notification';
 import { NotificationItem } from '@/src/types/notification';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useContext, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     FlatList,
     Image,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
-    ActivityIndicator,
 } from 'react-native';
-import { supabase } from '@/src/lib/supabase'; // file config supabase
-import { useFocusEffect } from '@react-navigation/native';
 
 export default function NotificationsScreen() {
     const { session } = useContext(AuthContext);
+    const { refreshUnreadCount } = useNotification();
+    const navigation = useNavigation<any>();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -39,50 +46,198 @@ export default function NotificationsScreen() {
             setLoading(false);
             return;
         }
-        const { data, error } = await supabase
-            .from('notifications') // tên bảng của bạn
-            .select('*')
-            .eq('receiverId', session.user.id)
-            .order('created_at', { ascending: false });
 
-        if (error) {
+        console.log('Fetching notifications for user:', session.user.id);
+
+        try {
+            const notificationData = await getNotifications(session.user.id);
+            console.log('Notifications fetched:', notificationData.length);
+
+            if (!notificationData || notificationData.length === 0) {
+                console.log('No notifications found');
+                setNotifications([]);
+                setLoading(false);
+                return;
+            }
+
+            // Lấy thông tin người gửi cho mỗi notification
+            const enrichedNotifications = await Promise.all(
+                notificationData.map(async (notification: any) => {
+                    console.log('Processing notification:', notification);
+
+                    const senderId = notification.senderId;
+
+                    // Lấy thông tin người gửi
+                    const { data: senderInfo } = await supabase
+                        .from('user_info')
+                        .select('full_name, avatar')
+                        .eq('id', senderId)
+                        .single();
+
+                    console.log('Sender info for', senderId, ':', senderInfo);
+
+                    const avatarPath = senderInfo?.avatar;
+
+                    return {
+                        ...notification,
+                        created_at: new Date(notification.created_at),
+                        data: {
+                            ...notification.data,
+                            avatar: avatarPath,
+                            senderName: senderInfo?.full_name || 'Unknown User',
+                            description: notification.data?.description || 'Nhấn để xem chi tiết'
+                        }
+                    };
+                })
+            );
+
+            console.log('Enriched notifications:', enrichedNotifications);
+            setNotifications(enrichedNotifications);
+        } catch (error) {
             console.error('Error fetching notifications:', error);
-        } else {
-            setNotifications(data || []);
+            setNotifications([]);
         }
+
         setLoading(false);
     };
 
-    const renderItem = ({ item }: { item: NotificationItem }) => (
-        <TouchableOpacity style={styles.notificationItem}>
-            <View style={styles.avatarContainer}>
-                <Image
-                    source={
-                        typeof item.data?.avatar === 'string'
-                            ? { uri: item.data.avatar }
-                            : require('../../../assets/avatar.png')
+    const handleNotificationPress = async (item: NotificationItem) => {
+        // Mark notification as read if not already read (handle undefined as unread)
+        const isRead = item.is_read === true;
+        if (!isRead) {
+            try {
+                const success = await markNotificationAsRead(item.id);
+                if (success) {
+                    // Update local state
+                    setNotifications(prevNotifications =>
+                        prevNotifications.map(notification =>
+                            notification.id === item.id
+                                ? { ...notification, is_read: true }
+                                : notification
+                        )
+                    );
+                    // Refresh unread count in context
+                    await refreshUnreadCount();
+                }
+            } catch (error) {
+                console.error('Error marking notification as read:', error);
+            }
+        }
+
+        // Handle navigation based on notification type
+        try {
+            switch (item.type) {
+                case 'friend_request':
+                    // Navigate to friends screen (Friends tab)
+                    console.log('Navigate to friend requests');
+                    // Get current friend requests
+                    const currentUserId = session?.user?.id;
+                    if (currentUserId) {
+                        const friendRequestsResponse = await getFriendRequests(currentUserId);
+                        navigation.navigate('Friends', { 
+                            screen: 'FriendsRequest',
+                            params: { 
+                                currentUserId,
+                                friendRequests: friendRequestsResponse.data || [],
+                                fromNotification: true 
+                            }
+                        });
                     }
-                    style={styles.avatar}
-                />
-            </View>
+                    break;
+                    
+                case 'like':
+                case 'comment':
+                    // Navigate to Home screen and scroll to specific post
+                    const postId = item.data?.postId;
+                    if (postId) {
+                        console.log('Navigate to post:', postId);
+                        navigation.navigate('Home', {
+                            screen: 'HomeContent',
+                            params: { 
+                                scrollToPost: postId,
+                                fromNotification: true 
+                            }
+                        });
+                    } else {
+                        console.warn('No postId found in notification:', item);
+                        // Fallback to Home if no postId
+                        navigation.navigate('Home');
+                        Alert.alert('Thông báo', 'Không thể tìm thấy bài viết này');
+                    }
+                    break;
+                    
+                default:
+                    console.log('Handle other notification types');
+                    // For unknown types, just navigate to Home
+                    navigation.navigate('Home');
+            }
+        } catch (error) {
+            console.error('Navigation error:', error);
+            Alert.alert('Lỗi', 'Không thể điều hướng đến trang được yêu cầu');
+        }
+    };
 
-            <View style={styles.contentContainer}>
-                <Text style={styles.title} numberOfLines={1}>
-                    {item.title}
-                </Text>
-                <Text style={styles.description} numberOfLines={2}>
-                    {item.data?.description || ''}
-                </Text>
-                <Text style={styles.time}>
-                    {new Date(item.created_at).toLocaleString('vi-VN')}
-                </Text>
-            </View>
+    const renderItem = ({ item }: { item: NotificationItem }) => {
+        // Debug avatar
+        const avatarPath = item.data?.avatar;
+        // console.log('Rendering notification avatar:', avatarPath);
+        
+        let avatarSource;
+        if (avatarPath && typeof avatarPath === 'string') {
+            if (avatarPath.startsWith('http')) {
+                avatarSource = { uri: avatarPath };
+            } else {
+                avatarSource = { uri: `${SUPABASE_URL}/storage/v1/object/public/uploads/${avatarPath}` };
+            }
+        } else {
+            avatarSource = require('../../../assets/avatar.png');
+        }
+        
+        // Xử lý trạng thái đã đọc (undefined hoặc null được coi là chưa đọc)
+        const isRead = item.is_read === true;
+        
+        // console.log('Final avatar source:', avatarSource);
+        
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.notificationItem,
+                    !isRead && styles.unreadNotification
+                ]}
+                onPress={() => handleNotificationPress(item)}
+            >
+                <View style={styles.avatarContainer}>
+                    <Image
+                        source={avatarSource}
+                        style={styles.avatar}
+                        onError={(error) => {
+                            console.log('Avatar load error:', error.nativeEvent.error);
+                        }}
+                        onLoad={() => {
+                            console.log('Avatar loaded successfully for:', item.data?.senderName);
+                        }}
+                    />
+                    {!isRead && <View style={styles.unreadDot} />}
+                </View>
 
-            <TouchableOpacity style={styles.moreButton}>
-                <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+                <View style={styles.contentContainer}>
+                    <Text style={[styles.title, !isRead && styles.unreadText]} numberOfLines={1}>
+                        {item.title}
+                    </Text>
+                    <Text style={styles.description} numberOfLines={2}>
+                        {item.data?.description || ''}
+                    </Text>
+                    <Text style={styles.time}>
+                        {new Date(item.created_at).toLocaleString('vi-VN')}
+                    </Text>
+                </View>
+
+                <TouchableOpacity style={styles.moreButton}>
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
+                </TouchableOpacity>
             </TouchableOpacity>
-        </TouchableOpacity>
-    );
+        );
+    };
 
     if (loading) {
         return (
@@ -92,13 +247,29 @@ export default function NotificationsScreen() {
         );
     }
 
+    if (notifications.length === 0) {
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                <Ionicons name="notifications-outline" size={64} color="#ccc" />
+                <Text style={{ fontSize: 18, color: '#666', marginTop: 16, textAlign: 'center' }}>
+                    Chưa có thông báo nào
+                </Text>
+                <Text style={{ fontSize: 14, color: '#999', marginTop: 8, textAlign: 'center' }}>
+                    Các thông báo về lời mời kết bạn, lượt thích và bình luận sẽ hiển thị ở đây
+                </Text>
+            </View>
+        );
+    }
+
     return (
-        <FlatList
-            data={notifications}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={{ backgroundColor: '#fff' }}
-        />
+        <View style={{ flex: 1 }}>
+            <FlatList
+                data={notifications}
+                keyExtractor={(item) => item.id}
+                renderItem={renderItem}
+                contentContainerStyle={{ backgroundColor: '#fff' }}
+            />
+        </View>
     );
 }
 
@@ -111,6 +282,9 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0.5,
         borderBottomColor: '#F0F0F0',
     },
+    unreadNotification: {
+        backgroundColor: '#f8f9ff',
+    },
     avatarContainer: {
         position: 'relative',
         marginRight: 12,
@@ -121,6 +295,17 @@ const styles = StyleSheet.create({
         borderRadius: 25,
         backgroundColor: '#E5E5E5',
     },
+    unreadDot: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#007AFF',
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
     contentContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -130,6 +315,10 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#000',
         marginBottom: 2,
+    },
+    unreadText: {
+        fontWeight: '700',
+        color: '#000',
     },
     description: {
         fontSize: 14,

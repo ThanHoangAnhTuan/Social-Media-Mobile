@@ -1,5 +1,6 @@
 import { Session } from '@supabase/supabase-js';
 import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system';
 
 import { supabase } from '@/src/lib/supabase';
 import {
@@ -12,7 +13,7 @@ import {
     UpdatePostData,
 } from '@/src/types/post';
 import { ServiceResponse } from '@/src/types/response';
-import * as FileSystem from 'expo-file-system';
+import { createNotification } from '../notification/notification';
 import { getUserAvatar } from '../user/UserInfo';
 
 const uploadMediaToStorage = async (
@@ -53,11 +54,11 @@ const uploadMediaToStorage = async (
                     uri: publicUrl.publicUrl,
                 });
 
-                console.log(
-                    'Media uploaded successfully:',
-                    fileName,
-                    publicUrl.publicUrl
-                );
+                // console.log(
+                //     'Media uploaded successfully:',
+                //     fileName,
+                //     publicUrl.publicUrl
+                // );
             }
         } catch (uploadError) {
             console.error('Error processing media:', uploadError);
@@ -147,7 +148,6 @@ const updatePost = async (
     session: Session
 ): Promise<ServiceResponse<Post>> => {
     try {
-        console.log('Updating post with data:', updateData);
 
         const updateFields: any = {
             content: updateData.content,
@@ -155,8 +155,6 @@ const updatePost = async (
             media: updateData.media,
             updated_at: new Date().toISOString(),
         };
-
-        console.log('Update fields:', updateFields);
 
         if (updateData.location !== undefined) {
             updateFields.location = updateData.location;
@@ -252,10 +250,10 @@ const deleteMediaFromStorage = async (
                             error
                         );
                     } else {
-                        console.log(
-                            'Media file deleted successfully:',
-                            filePath
-                        );
+                        // console.log(
+                        //     'Media file deleted successfully:',
+                        //     filePath
+                        // );
                     }
                 }
             }
@@ -270,7 +268,7 @@ const deletePost = async (
     session: Session
 ): Promise<ServiceResponse<boolean>> => {
     try {
-        console.log('Deleting post:', postId, 'by user:', session.user.id);
+        // console.log('Deleting post:', postId, 'by user:', session.user.id);
 
         const { data: postData, error: fetchError } = await supabase
             .from('posts')
@@ -284,6 +282,18 @@ const deletePost = async (
             return { success: false, error: fetchError.message };
         }
 
+        // Xóa tất cả comments của post trước khi xóa post
+        const { error: commentsDeleteError } = await supabase
+            .from('comments')
+            .delete()
+            .eq('post_id', postId);
+
+        if (commentsDeleteError) {
+            console.error('Error deleting comments:', commentsDeleteError);
+            return { success: false, error: commentsDeleteError.message };
+        }
+
+        // Xóa post
         const { error } = await supabase
             .from('posts')
             .delete()
@@ -296,11 +306,11 @@ const deletePost = async (
         }
 
         if (postData?.media && Array.isArray(postData.media)) {
-            console.log('Cleaning up media files...');
+            // console.log('Cleaning up media files...');
             await deleteMediaFromStorage(postData.media);
         }
 
-        console.log('Post deleted successfully:', postId);
+        // console.log('Post deleted successfully:', postId);
         return { success: true, data: true };
     } catch (error) {
         console.error('Error deleting post:', error);
@@ -317,7 +327,18 @@ const hardDeletePost = async (
     session: Session
 ): Promise<ServiceResponse<boolean>> => {
     try {
-        console.log('Hard deleting post:', postId, 'by user:', session.user.id);
+        // console.log('Hard deleting post:', postId, 'by user:', session.user.id);
+
+        // Xóa tất cả comments của post trước khi xóa post
+        const { error: commentsDeleteError } = await supabase
+            .from('comments')
+            .delete()
+            .eq('post_id', postId);
+
+        if (commentsDeleteError) {
+            console.error('Error deleting comments:', commentsDeleteError);
+            return { success: false, error: commentsDeleteError.message };
+        }
 
         const { error } = await supabase
             .from('posts')
@@ -330,7 +351,7 @@ const hardDeletePost = async (
             return { success: false, error: error.message };
         }
 
-        console.log('Post permanently deleted:', postId);
+        // console.log('Post permanently deleted:', postId);
         return { success: true, data: true };
     } catch (error) {
         console.error('Error hard deleting post:', error);
@@ -383,7 +404,7 @@ const changePrivacyLevel = async (
     }
 };
 
-const getPostById = async (postId: number): Promise<ServiceResponse<Post>> => {
+const getPostById = async (postId: string): Promise<ServiceResponse<Post>> => {
     try {
         const { data, error } = await supabase
             .from('posts')
@@ -461,12 +482,30 @@ const getPosts = async (
 };
 
 const incrementLikeCount = async (
-    postId: number
+    postId: string
 ): Promise<ServiceResponse<Post>> => {
     try {
-        const { data, error } = await supabase.rpc('increment_like_count', {
-            post_id: postId,
-        });
+        // Lấy số likes hiện tại trước
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('likes')
+            .eq('id', postId)
+            .single();
+
+        if (fetchError) {
+            return { success: false, error: fetchError.message };
+        }
+
+        // Tăng likes lên 1
+        const { data, error } = await supabase
+            .from('posts')
+            .update({ 
+                likes: (currentPost.likes || 0) + 1,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId)
+            .select()
+            .single();
 
         if (error) {
             return { success: false, error: error.message };
@@ -483,57 +522,30 @@ const incrementLikeCount = async (
 };
 
 const decrementLikeCount = async (
-    postId: number
+    postId: string
 ): Promise<ServiceResponse<Post>> => {
     try {
-        const { data, error } = await supabase.rpc('decrement_like_count', {
-            post_id: postId,
-        });
+        // Lấy số likes hiện tại trước
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('likes')
+            .eq('id', postId)
+            .single();
 
-        if (error) {
-            return { success: false, error: error.message };
+        if (fetchError) {
+            return { success: false, error: fetchError.message };
         }
 
-        // Lấy lại post sau khi update
-        return await getPostById(postId);
-    } catch (error) {
-        return {
-            success: false,
-            error:
-                error instanceof Error ? error.message : 'Lỗi không xác định',
-        };
-    }
-};
-
-const incrementCommentCount = async (
-    postId: number
-): Promise<ServiceResponse<Post>> => {
-    try {
-        const { data, error } = await supabase.rpc('increment_comment_count', {
-            post_id: postId,
-        });
-
-        if (error) {
-            return { success: false, error: error.message };
-        }
-
-        return await getPostById(postId);
-    } catch (error) {
-        return {
-            success: false,
-            error:
-                error instanceof Error ? error.message : 'Lỗi không xác định',
-        };
-    }
-};
-
-const decrementCommentCount = async (
-    postId: number
-): Promise<ServiceResponse<Post>> => {
-    try {
-        const { data, error } = await supabase.rpc('decrement_comment_count', {
-            post_id: postId,
-        });
+        // Giảm likes đi 1 (không cho xuống dưới 0)
+        const { data, error } = await supabase
+            .from('posts')
+            .update({ 
+                likes: Math.max((currentPost.likes || 0) - 1, 0),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId)
+            .select()
+            .single();
 
         if (error) {
             return { success: false, error: error.message };
@@ -550,12 +562,30 @@ const decrementCommentCount = async (
 };
 
 const incrementShareCount = async (
-    postId: number
+    postId: string
 ): Promise<ServiceResponse<Post>> => {
     try {
-        const { data, error } = await supabase.rpc('increment_share_count', {
-            post_id: postId,
-        });
+        // Lấy số shares hiện tại trước
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('shares')
+            .eq('id', postId)
+            .single();
+
+        if (fetchError) {
+            return { success: false, error: fetchError.message };
+        }
+
+        // Tăng shares lên 1
+        const { data, error } = await supabase
+            .from('posts')
+            .update({ 
+                shares: (currentPost.shares || 0) + 1,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId)
+            .select()
+            .single();
 
         if (error) {
             return { success: false, error: error.message };
@@ -572,12 +602,110 @@ const incrementShareCount = async (
 };
 
 const decrementShareCount = async (
-    postId: number
+    postId: string
 ): Promise<ServiceResponse<Post>> => {
     try {
-        const { data, error } = await supabase.rpc('decrement_share_count', {
-            post_id: postId,
-        });
+        // Lấy số shares hiện tại trước
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('shares')
+            .eq('id', postId)
+            .single();
+
+        if (fetchError) {
+            return { success: false, error: fetchError.message };
+        }
+
+        // Giảm shares đi 1 (không cho xuống dưới 0)
+        const { data, error } = await supabase
+            .from('posts')
+            .update({ 
+                shares: Math.max((currentPost.shares || 0) - 1, 0),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId)
+            .select()
+            .single();
+
+        if (error) {
+            return { success: false, error: error.message };
+        }
+
+        return await getPostById(postId);
+    } catch (error) {
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+const incrementCommentCount = async (
+    postId: string
+): Promise<ServiceResponse<Post>> => {
+    try {
+        // Lấy số comments hiện tại trước
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('comments')
+            .eq('id', postId)
+            .single();
+
+        if (fetchError) {
+            return { success: false, error: fetchError.message };
+        }
+
+        // Tăng comments lên 1
+        const { data, error } = await supabase
+            .from('posts')
+            .update({ 
+                comments: (currentPost.comments || 0) + 1,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId)
+            .select()
+            .single();
+
+        if (error) {
+            return { success: false, error: error.message };
+        }
+
+        return await getPostById(postId);
+    } catch (error) {
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+const decrementCommentCount = async (
+    postId: string
+): Promise<ServiceResponse<Post>> => {
+    try {
+        // Lấy số comments hiện tại trước
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('comments')
+            .eq('id', postId)
+            .single();
+
+        if (fetchError) {
+            return { success: false, error: fetchError.message };
+        }
+
+        // Giảm comments đi 1 (không cho xuống dưới 0)
+        const { data, error } = await supabase
+            .from('posts')
+            .update({ 
+                comments: Math.max((currentPost.comments || 0) - 1, 0),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId)
+            .select()
+            .single();
 
         if (error) {
             return { success: false, error: error.message };
@@ -649,12 +777,12 @@ const getAllPosts = async (): Promise<ServiceResponse<Post[]>> => {
                 author: {
                     id: post.user_id,
                     name: userInfo?.full_name || 'Unknown User',
-                    avatar: getUserAvatar(userInfo?.avatar) || '',
+                    avatar: getUserAvatar(userInfo?.avatar) || 'https://via.placeholder.com/50',
                 },
             };
         });
 
-        console.log(`Fetched ${formattedPosts.length} posts successfully`);
+        // console.log(`Fetched ${formattedPosts.length} posts successfully`);
         return { success: true, data: formattedPosts };
     } catch (error) {
         console.error('Error in getAllPosts:', error);
@@ -726,7 +854,7 @@ const getPostsByUserId = async (
                 author: {
                     id: user.id,
                     name: user.full_name,
-                    avatar: getUserAvatar(user.avatar) || '',
+                    avatar: getUserAvatar(user.avatar) || 'https://via.placeholder.com/50',
                 },
             };
         });
@@ -773,21 +901,189 @@ const createSmartUpdateData = (
     return updateData;
 };
 
-export {
-    createPost,
-    updatePost,
-    deletePost,
-    hardDeletePost,
-    changePrivacyLevel,
-    getPostById,
-    getPosts,
-    getAllPosts,
-    getPostsByUserId,
-    incrementLikeCount,
-    decrementLikeCount,
-    incrementCommentCount,
-    incrementShareCount,
-    decrementShareCount,
-    decrementCommentCount,
-    createSmartUpdateData,
+// Function to handle like with notification
+const likePost = async (
+    postId: string,
+    likerId: string,
+    likerName: string
+): Promise<ServiceResponse<Post>> => {
+    try {
+        // Lấy thông tin post trước để biết chủ sở hữu
+        const { data: postData, error: postError } = await supabase
+            .from('posts')
+            .select('user_id')
+            .eq('id', postId)
+            .single();
+
+        if (postError) {
+            console.error('Error fetching post owner:', postError);
+            return { success: false, error: postError.message };
+        }
+
+        const postOwnerId = postData.user_id;
+
+        // Increment like count - sử dụng string postId
+        const result = await incrementLikeCount(postId);
+        
+        if (result.success) {
+            // Only send notification if liker is not the post owner
+            if (likerId !== postOwnerId) {
+                try {
+                    // Sử dụng createNotification service
+                    await createNotification(
+                        likerId,        // senderId: người thích bài viết
+                        postOwnerId,    // receiverId: chủ bài viết
+                        'like',
+                        `${likerName} đã thích bài viết của bạn`,
+                        {
+                            postId: postId,
+                            likerName: likerName,
+                            description: 'Nhấn để xem bài viết'
+                        }
+                    );
+                    console.log('Like notification created successfully');
+                } catch (notificationError) {
+                    console.error('Error creating like notification:', notificationError);
+                }
+            }
+        }
+        
+        return result;
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
 };
+
+// Function to handle comment with notification  
+const commentOnPost = async (
+    postId: string,
+    commenterId: string,
+    commenterName: string,
+    commentContent: string
+): Promise<ServiceResponse<boolean>> => {
+    try {
+        // Lấy thông tin post trước để biết chủ sở hữu
+        const { data: postData, error: postError } = await supabase
+            .from('posts')
+            .select('user_id')
+            .eq('id', postId)
+            .single();
+
+        if (postError) {
+            console.error('Error fetching post owner:', postError);
+            return { success: false, error: postError.message };
+        }
+
+        const postOwnerId = postData.user_id;
+
+        // Only send notification if commenter is not the post owner
+        if (commenterId !== postOwnerId) {
+            try {
+                // Tạo notification trực tiếp qua Supabase
+                const { error: notificationError } = await supabase
+                    .from('notifications')
+                    .insert({
+                        senderId: commenterId,    // senderId: người bình luận
+                        receiverId: postOwnerId,  // receiverId: chủ bài viết
+                        type: 'comment',
+                        title: `${commenterName} đã bình luận bài viết của bạn`,
+                        data: {
+                            postId: postId,
+                            commenterName: commenterName,
+                            commentContent: commentContent.substring(0, 50) + (commentContent.length > 50 ? '...' : ''),
+                            description: 'Nhấn để xem bình luận'
+                        },
+                        created_at: new Date().toISOString()
+                    });
+
+                if (notificationError) {
+                    console.error('Error creating comment notification:', notificationError);
+                } else {
+                    console.log('Comment notification created successfully');
+                }
+            } catch (notificationError) {
+                console.error('Error creating comment notification:', notificationError);
+            }
+        }
+        
+        return { success: true, data: true };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+// Hàm để sync comment count với số comment thực tế
+const syncCommentCount = async (postId: string): Promise<ServiceResponse<any>> => {
+    try {
+        // Đếm số comment thực tế
+        const { count, error: countError } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', postId);
+
+        if (countError) {
+            return { success: false, error: countError.message };
+        }
+
+        // Cập nhật comment count trong posts table
+        const { error: updateError } = await supabase
+            .from('posts')
+            .update({ 
+                comments: count || 0,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId);
+
+        if (updateError) {
+            return { success: false, error: updateError.message };
+        }
+
+        console.log(`Synced comment count for post ${postId}: ${count} comments`);
+        return { success: true, data: { postId, commentCount: count } };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+// Hàm để sync tất cả comment counts
+const syncAllCommentCounts = async (): Promise<ServiceResponse<any>> => {
+    try {
+        // Lấy tất cả posts
+        const { data: posts, error: postsError } = await supabase
+            .from('posts')
+            .select('id');
+
+        if (postsError) {
+            return { success: false, error: postsError.message };
+        }
+
+        const results = [];
+        for (const post of posts || []) {
+            const result = await syncCommentCount(post.id);
+            results.push(result);
+        }
+
+        console.log('Synced all comment counts');
+        return { success: true, data: results };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+export {
+    changePrivacyLevel, commentOnPost, createPost, createSmartUpdateData, decrementCommentCount, decrementLikeCount, decrementShareCount, deletePost, getAllPosts, getPostById,
+    getPosts, getPostsByUserId, hardDeletePost, incrementCommentCount, incrementLikeCount, incrementShareCount, likePost, syncAllCommentCounts, syncCommentCount, updatePost
+};
+

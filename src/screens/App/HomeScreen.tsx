@@ -5,13 +5,18 @@ import {
     PRIVACY_OPTIONS,
 } from '@/src/constants/Post';
 import {
+    createComment, getCommentsByPostId
+} from '@/src/services/comment/comment';
+import { getPostsLikeStatus, toggleLike } from '@/src/services/like/like';
+import {
+    commentOnPost,
     createPost,
     deletePost,
     getAllPosts,
-    getPostsByUserId,
-    updatePost,
+    getPostById,
+    syncAllCommentCounts,
+    updatePost
 } from '@/src/services/post/post';
-import { useFocusEffect } from '@react-navigation/native';
 import { GetUserProfile } from '@/src/services/user/UserInfo';
 import {
     Comment,
@@ -27,11 +32,13 @@ import {
     Feather,
     Ionicons
 } from '@expo/vector-icons';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import React, {
     JSX,
+    memo,
     useCallback,
     useContext,
     useEffect,
@@ -52,8 +59,179 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-export default function HomeScreen(): JSX.Element {
+// Optimized PostItem component
+const PostItem = memo(({ 
+    post, 
+    sessionUserId, 
+    onLike, 
+    onDelete, 
+    onEdit, 
+    onComment, 
+    onShare,
+    renderMediaGrid 
+}: {
+    post: Post;
+    sessionUserId?: string;
+    onLike: (postId: string) => void;
+    onDelete: (postId: string) => void;
+    onEdit: (post: Post) => void;
+    onComment: (post: Post) => void;
+    onShare: (post: Post) => void;
+    renderMediaGrid: (media: MediaItem[]) => React.ReactNode;
+}) => {
+    const privacyInfo = PRIVACY_OPTIONS.find(
+        (opt) => opt.value === post.privacy
+    );
+
+    // Check nếu post hoặc author bị undefined
+    if (!post || !post.author) {
+        return null;
+    }
+
+    return (
+        <View style={[styles.postCard]}>
+            {/* Post Header */}
+            <View style={[styles.postHeader, { borderRadius: 12 }]}>
+                <View style={styles.authorInfo}>
+                    <Image
+                        source={{ 
+                            uri: post.author.avatar || 'https://via.placeholder.com/50',
+                            cache: 'force-cache'
+                        }}
+                        style={styles.authorAvatar}
+                        defaultSource={require('../../../assets/avatar.png')}
+                    />
+                    <View style={styles.authorDetails}>
+                        <View style={styles.authorNameContainer}>
+                            <Text style={[styles.authorName]}>
+                                {post.author.name || 'Unknown User'}
+                            </Text>
+                            {post.feelingActivity && (
+                                <Text style={[styles.feelingText]}>
+                                    {post.feelingActivity.type === 'feeling'
+                                        ? 'đang cảm thấy'
+                                        : ''}{' '}
+                                    {post.feelingActivity.emoji}{' '}
+                                    {post.feelingActivity.text}
+                                </Text>
+                            )}
+                        </View>
+                        <View style={styles.postMeta}>
+                            <View style={styles.privacyIndicator}>
+                                <Feather
+                                    name={privacyInfo?.icon as any}
+                                    size={12}
+                                    color={privacyInfo?.color}
+                                />
+                            </View>
+                        </View>
+                        {post.location && (
+                            <View style={styles.locationInfo}>
+                                <Feather name="map-pin" size={12} />
+                                <Text style={[styles.locationText]}>
+                                    {post.location.name}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+                <View style={styles.postActions}>
+                    {/* Chỉ hiển thị nút Edit và Delete nếu là bài viết của user hiện tại */}
+                    {sessionUserId === post.author.id && (
+                        <>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => onEdit(post)}
+                            >
+                                <Feather name="edit-2" size={16} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => onDelete(post.id)}
+                            >
+                                <Feather
+                                    name="trash-2"
+                                    size={16}
+                                    color="#ef4444"
+                                />
+                            </TouchableOpacity>
+                        </>
+                    )}
+                </View>
+            </View>
+
+            {/* Post Content with Background */}
+            <View>
+                <Text style={[styles.postContent]}>{post.content}</Text>
+            </View>
+
+            {/* Post Media */}
+            {renderMediaGrid(post.media)}
+
+            {/* Post Stats */}
+            <View style={styles.postStats}>
+                <Text style={styles.statsText}>
+                    {post.likes} lượt thích
+                </Text>
+                <Text style={styles.statsText}>
+                    {post.comments} bình luận
+                </Text>
+                <Text style={styles.statsText}>{post.shares} chia sẻ</Text>
+            </View>
+
+            {/* Post Interactions */}
+            <View style={styles.postInteractions}>
+                <TouchableOpacity
+                    style={[
+                        styles.interactionButton,
+                        post.isLiked && styles.likedButton,
+                    ]}
+                    onPress={() => onLike(post.id)}
+                >
+                    <Ionicons
+                        name={post.isLiked ? 'heart' : 'heart-outline'}
+                        size={20}
+                        color={post.isLiked ? '#ef4444' : '#6b7280'}
+                    />
+                    <Text
+                        style={[
+                            styles.interactionText,
+                            post.isLiked && styles.likedText,
+                        ]}
+                    >
+                        Thích
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.interactionButton}
+                    onPress={() => onComment(post)}
+                >
+                    <Feather
+                        name="message-circle"
+                        size={20}
+                        color="#6b7280"
+                    />
+                    <Text style={styles.interactionText}>Bình luận</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.interactionButton}
+                    onPress={() => onShare(post)}
+                >
+                    <Feather name="share" size={20} color="#6b7280" />
+                    <Text style={styles.interactionText}>Chia sẻ</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
+
+export default memo(function HomeScreen(): JSX.Element {
     const { session } = useContext(AuthContext);
+    const route = useRoute<any>();
+    const { scrollToPost, fromNotification } = route.params || {};
+
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -83,6 +261,7 @@ export default function HomeScreen(): JSX.Element {
         useState<string>('transparent');
 
     const [avatar, setAvatar] = useState<string>('');
+    const [searchingForPost, setSearchingForPost] = useState<string | null>(null);
     const fetchUserProfile = async (session: Session) => {
         try {
             setLoading(true);
@@ -190,14 +369,76 @@ export default function HomeScreen(): JSX.Element {
 
     useEffect(() => {
         requestPermissions();
-    }, []);
+    }, []); // Add dependency array to prevent infinite calls
 
     useEffect(() => {
         if (session) {
             loadPosts();
-            requestPermissions();
         }
     }, [session]);
+
+    // Handle navigation from notification to specific post
+    useEffect(() => {
+        if (scrollToPost && fromNotification) {
+            console.log('Attempting to scroll to post:', scrollToPost);
+            setSearchingForPost(scrollToPost);
+
+            if (posts.length > 0) {
+                const targetPost = posts.find(post => post.id === scrollToPost);
+
+                if (targetPost) {
+                    console.log('Target post found:', targetPost.id);
+                    setSearchingForPost(null);
+                    // Open comments modal for the target post automatically
+                    setTimeout(() => {
+                        openCommentsModal(targetPost);
+                    }, 500); // Small delay to ensure UI is ready
+                } else {
+                    console.log('Target post not found in current posts list, retrying...');
+                    // If posts are loaded but target not found, try to fetch it specifically
+                    handleMissingPost(scrollToPost);
+                }
+            }
+            // If posts.length === 0, wait for loadPosts to complete
+        }
+    }, [scrollToPost, posts, fromNotification]);
+
+    // Clear search state when posts are loaded and we're searching
+    useEffect(() => {
+        if (searchingForPost && posts.length > 0) {
+            const targetPost = posts.find(post => post.id === searchingForPost);
+            if (targetPost) {
+                console.log('Found target post after posts loaded:', targetPost.id);
+                setSearchingForPost(null);
+                setTimeout(() => {
+                    openCommentsModal(targetPost);
+                }, 500);
+            }
+        }
+    }, [posts, searchingForPost]);
+
+    const handleMissingPost = async (postId: string) => {
+        try {
+            console.log('Trying to fetch specific post:', postId);
+            const response = await getPostById(postId);
+            if (response.success && response.data) {
+                const post = response.data;
+                console.log('Successfully fetched missing post');
+                setSearchingForPost(null);
+                setTimeout(() => {
+                    openCommentsModal(post);
+                }, 500);
+            } else {
+                console.log('Post not found in database');
+                setSearchingForPost(null);
+                Alert.alert('Thông báo', 'Không thể tìm thấy bài viết này');
+            }
+        } catch (error) {
+            console.error('Error fetching missing post:', error);
+            setSearchingForPost(null);
+            Alert.alert('Lỗi', 'Có lỗi xảy ra khi tải bài viết');
+        }
+    };
 
     const requestPermissions = async () => {
         const { status: mediaStatus } =
@@ -215,7 +456,7 @@ export default function HomeScreen(): JSX.Element {
         }
     };
 
-    const loadPosts = async () => {
+    const loadPosts = useCallback(async () => {
         if (!session) {
             console.log('No session available');
             return;
@@ -224,26 +465,52 @@ export default function HomeScreen(): JSX.Element {
         setLoading(true);
         try {
             const response = await getAllPosts();
-            console.log('getAllPosts response:', response);
+            // console.log('getAllPosts response:', response);
 
             if (response.success && response.data) {
-                setPosts(response.data);
-                console.log(
-                    'Loaded posts successfully:',
-                    response.data.length,
-                    'posts'
-                );
+                const posts = response.data;
+                
+                // Lấy trạng thái like cho tất cả posts
+                const postIds = posts.map(post => post.id);
+                const likeStatusResponse = await getPostsLikeStatus(postIds, session.user.id);
+                
+                if (likeStatusResponse.success && likeStatusResponse.data) {
+                    const likeStatus = likeStatusResponse.data;
+                    
+                    // Update isLiked based on database
+                    const postsWithLikeStatus = posts.map(post => ({
+                        ...post,
+                        isLiked: likeStatus[post.id] || false
+                    }));
+                    
+                    setPosts(postsWithLikeStatus);
+                    // console.log(
+                    //     // 'Loaded posts successfully:',
+                    //     postsWithLikeStatus.length,
+                    //     'posts'
+                    // );
+                } else {
+                    // Fallback nếu không lấy được like status
+                    setPosts(posts);
+                    console.log('Loaded posts without like status');
+                }
             } else {
                 console.error('Error loading posts:', response.error);
-                setPosts(mockPosts);
+                // Chỉ sử dụng mock data nếu không có session hoặc lỗi nghiêm trọng
+                if (!session) {
+                    setPosts(mockPosts);
+                }
             }
         } catch (error) {
             console.error('Error loading posts:', error);
-            setPosts(mockPosts);
+            // Chỉ sử dụng mock data nếu không có session
+            if (!session) {
+                setPosts(mockPosts);
+            }
         } finally {
             setLoading(false);
         }
-    };
+    }, [session]);
 
     const resetForm = () => {
         setPostContent('');
@@ -252,6 +519,33 @@ export default function HomeScreen(): JSX.Element {
         setSelectedLocation(null);
         setSelectedFeelingActivity(null);
         setSelectedBackground('transparent');
+    };
+
+    // Hàm để refresh một post cụ thể để cập nhật comment count
+    const refreshPostData = async (postId: string) => {
+        try {
+            const response = await getPostById(postId);
+            if (response.success && response.data) {
+                const updatedPost = response.data;
+                
+                // Use functional update to get latest state
+                setPosts(currentPosts => 
+                    currentPosts.map((post) =>
+                        post.id === postId ? updatedPost : post
+                    )
+                );
+
+                // Cập nhật selectedPost nếu đang xem post này
+                if (selectedPost && selectedPost.id === postId) {
+                    setSelectedPost(updatedPost);
+                }
+
+                return updatedPost;
+            }
+        } catch (error) {
+            console.error('Error refreshing post data:', error);
+        }
+        return null;
     };
 
     const handleCreatePost = async () => {
@@ -410,7 +704,7 @@ export default function HomeScreen(): JSX.Element {
         setShowEditModal(true);
     };
 
-    const renderMediaGrid = (media: MediaItem[]) => {
+    const renderMediaGrid = useCallback((media: MediaItem[]) => {
         if (media.length === 0) return null;
 
         const renderMediaItem = (item: MediaItem, index: number) => {
@@ -437,6 +731,7 @@ export default function HomeScreen(): JSX.Element {
                         source={{ uri: item.uri }}
                         style={styles.mediaImage}
                         resizeMode="cover"
+                        loadingIndicatorSource={require('../../../assets/image.png')}
                     />
                     {isVideo && (
                         <View style={styles.videoOverlay}>
@@ -466,6 +761,7 @@ export default function HomeScreen(): JSX.Element {
                             source={{ uri: media[0].uri }}
                             style={styles.mediaImage}
                             resizeMode="cover"
+                            loadingIndicatorSource={require('../../../assets/image.png')}
                         />
                         {media[0].type === 'video' && (
                             <View style={styles.videoOverlay}>
@@ -490,6 +786,7 @@ export default function HomeScreen(): JSX.Element {
                                     source={{ uri: item.uri }}
                                     style={styles.mediaImage}
                                     resizeMode="cover"
+                                    loadingIndicatorSource={require('../../../assets/image.png')}
                                 />
                                 {item.type === 'video' && (
                                     <View style={styles.videoOverlay}>
@@ -514,7 +811,7 @@ export default function HomeScreen(): JSX.Element {
                     .map((item, index) => renderMediaItem(item, index))}
             </View>
         );
-    };
+    }, []);
 
     const renderCreateFormMedia = () => {
         if (selectedMedia.length === 0) return null;
@@ -552,150 +849,22 @@ export default function HomeScreen(): JSX.Element {
         );
     };
 
-    const renderPost = ({ item: post }: { item: Post }) => {
-        const privacyInfo = PRIVACY_OPTIONS.find(
-            (opt) => opt.value === post.privacy
-        );
-
+    const renderPost = useCallback(({ item: post }: { item: Post }) => {
         return (
-            <View style={[styles.postCard]}>
-                {/* Post Header */}
-                <View style={[styles.postHeader, { borderRadius: 12 }]}>
-                    <View style={styles.authorInfo}>
-                        <Image
-                            source={{ uri: post.author.avatar }}
-                            style={styles.authorAvatar}
-                        />
-                        <View style={styles.authorDetails}>
-                            <View style={styles.authorNameContainer}>
-                                <Text style={[styles.authorName]}>
-                                    {post.author.name}
-                                </Text>
-                                {post.feelingActivity && (
-                                    <Text style={[styles.feelingText]}>
-                                        {post.feelingActivity.type === 'feeling'
-                                            ? 'đang cảm thấy'
-                                            : ''}{' '}
-                                        {post.feelingActivity.emoji}{' '}
-                                        {post.feelingActivity.text}
-                                    </Text>
-                                )}
-                            </View>
-                            <View style={styles.postMeta}>
-                                {/* <Text style={[styles.postDate]}>
-                                    {formatDate(post.createdAt)}
-                                </Text> */}
-                                <View style={styles.privacyIndicator}>
-                                    <Feather
-                                        name={privacyInfo?.icon as any}
-                                        size={12}
-                                        color={privacyInfo?.color}
-                                    />
-                                </View>
-                            </View>
-                            {post.location && (
-                                <View style={styles.locationInfo}>
-                                    <Feather name="map-pin" size={12} />
-                                    <Text style={[styles.locationText]}>
-                                        {post.location.name}
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                    </View>
-                    <View style={styles.postActions}>
-                        {/* Chỉ hiển thị nút Edit và Delete nếu là bài viết của user hiện tại */}
-                        {session?.user?.id === post.author.id && (
-                            <>
-                                <TouchableOpacity
-                                    style={styles.actionButton}
-                                    onPress={() => openEditModal(post)}
-                                >
-                                    <Feather name="edit-2" size={16} />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.actionButton}
-                                    onPress={() => handleDeletePost(post.id)}
-                                >
-                                    <Feather
-                                        name="trash-2"
-                                        size={16}
-                                        color="#ef4444"
-                                    />
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                </View>
-
-                {/* Post Content with Background */}
-                <View>
-                    <Text style={[styles.postContent]}>{post.content}</Text>
-                </View>
-
-                {/* Post Media */}
-                {renderMediaGrid(post.media)}
-
-                {/* Post Stats */}
-                <View style={styles.postStats}>
-                    <Text style={styles.statsText}>
-                        {post.likes} lượt thích
-                    </Text>
-                    <Text style={styles.statsText}>
-                        {post.comments} bình luận
-                    </Text>
-                    <Text style={styles.statsText}>{post.shares} chia sẻ</Text>
-                </View>
-
-                {/* Post Interactions */}
-                <View style={styles.postInteractions}>
-                    <TouchableOpacity
-                        style={[
-                            styles.interactionButton,
-                            post.isLiked && styles.likedButton,
-                        ]}
-                        onPress={() => handleLikePost(post.id)}
-                    >
-                        <Ionicons
-                            name={post.isLiked ? 'heart' : 'heart-outline'}
-                            size={20}
-                            color={post.isLiked ? '#ef4444' : '#6b7280'}
-                        />
-                        <Text
-                            style={[
-                                styles.interactionText,
-                                post.isLiked && styles.likedText,
-                            ]}
-                        >
-                            Thích
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.interactionButton}
-                        onPress={() => openCommentsModal(post)}
-                    >
-                        <Feather
-                            name="message-circle"
-                            size={20}
-                            color="#6b7280"
-                        />
-                        <Text style={styles.interactionText}>Bình luận</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.interactionButton}
-                        onPress={() => handleSharePost(post)}
-                    >
-                        <Feather name="share" size={20} color="#6b7280" />
-                        <Text style={styles.interactionText}>Chia sẻ</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+            <PostItem
+                post={post}
+                sessionUserId={session?.user?.id}
+                onLike={handleLikePost}
+                onDelete={handleDeletePost}
+                onEdit={openEditModal}
+                onComment={openCommentsModal}
+                onShare={handleSharePost}
+                renderMediaGrid={renderMediaGrid}
+            />
         );
-    };
+    }, [session?.user?.id, renderMediaGrid]);
 
-    const handleDeletePost = async (postId: string) => {
+    const handleDeletePost = useCallback(async (postId: string) => {
         Alert.alert('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa bài viết này?', [
             { text: 'Hủy', style: 'cancel' },
             {
@@ -705,9 +874,9 @@ export default function HomeScreen(): JSX.Element {
                     try {
                         const response = await deletePost(postId, session!);
                         if (response.success) {
-                            // Remove the post from local state
-                            setPosts(
-                                posts.filter((post) => post.id !== postId)
+                            // Remove the post from local state using functional update
+                            setPosts(currentPosts => 
+                                currentPosts.filter((post) => post.id !== postId)
                             );
                             Alert.alert('Thành công', 'Đã xóa bài viết');
                         } else {
@@ -725,82 +894,191 @@ export default function HomeScreen(): JSX.Element {
                 },
             },
         ]);
-    };
+    }, [session]);
 
-    const handleLikePost = (postId: string) => {
-        const updatedPosts = posts.map((post) =>
-            post.id === postId
-                ? {
-                    ...post,
-                    isLiked: !post.isLiked,
-                    likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                }
-                : post
-        );
-        setPosts(updatedPosts);
-    };
+    const [isLiking, setIsLiking] = useState<Set<string>>(new Set());
 
-    const handleSharePost = async (post: Post) => {
+    const handleLikePost = useCallback(async (postId: string) => {
+        if (!session) return;
+        
+        // Prevent spam clicking
+        if (isLiking.has(postId)) {
+            console.log('⏳ Like action already in progress for post:', postId);
+            return;
+        }
+
+        const currentPost = posts.find(p => p.id === postId);
+        if (!currentPost) return;
+
+        const isCurrentlyLiked = currentPost.isLiked;
+        const currentLikes = currentPost.likes;
+        
+        console.log(`🔄 Toggle like for post ${postId}: currently ${isCurrentlyLiked ? 'LIKED' : 'NOT LIKED'}, count: ${currentLikes}`);
+        
+        // Mark as processing
+        setIsLiking(prev => new Set(prev).add(postId));
+        
+        try {
+            console.log(`⚡ Calling toggle API: ${!isCurrentlyLiked ? 'LIKING' : 'UNLIKING'}`);
+
+            // Gọi API toggle like (không optimistic update để tránh conflict)
+            const userName = session.user.user_metadata.full_name || 'Unknown User';
+            const result = await toggleLike({
+                userId: session.user.id,
+                postId: postId,
+                userName: userName
+            });
+
+            if (result.success && result.data) {
+                // Cập nhật với data chính xác từ server
+                setPosts(currentPosts => 
+                    currentPosts.map((post) =>
+                        post.id === postId
+                            ? {
+                                ...post,
+                                isLiked: result.data!.isLiked,
+                                likes: result.data!.newLikeCount,
+                            }
+                            : post
+                    )
+                );
+                console.log(`✅ Server response: ${result.data.isLiked ? 'LIKED' : 'UNLIKED'}, count: ${result.data.newLikeCount}`);
+            } else {
+                console.error('❌ Error toggling like:', result.error);
+                Alert.alert('Lỗi', result.error || 'Không thể thực hiện like');
+            }
+        } catch (error) {
+            console.error('❌ Exception in like toggle:', error);
+            Alert.alert('Lỗi', 'Có lỗi xảy ra khi thực hiện like');
+        } finally {
+            // Remove from processing set
+            setIsLiking(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(postId);
+                return newSet;
+            });
+        }
+    }, [session, posts, isLiking]);
+
+    const handleSharePost = useCallback(async (post: Post) => {
         try {
             await Share.share({
                 message: `${post.content}\n\nChia sẻ từ ứng dụng`,
                 title: 'Chia sẻ bài viết',
             });
 
-            const updatedPosts = posts.map((p) =>
-                p.id === post.id ? { ...p, shares: p.shares + 1 } : p
+            // Use functional update to get latest state
+            setPosts(currentPosts => 
+                currentPosts.map((p) =>
+                    p.id === post.id ? { ...p, shares: p.shares + 1 } : p
+                )
             );
-            setPosts(updatedPosts);
         } catch (error) {
             console.error('Error sharing post:', error);
         }
-    };
+    }, []);
+    // Move these functions outside so they can be used elsewhere
 
-    const openCommentsModal = (post: Post) => {
+    const handleSyncCommentCounts = () => {
+        [
+            { text: 'Hủy', style: 'cancel' },
+            {
+                text: 'Sync',
+                onPress: async () => {
+                    try {
+                        const result = await syncAllCommentCounts();
+                        if (result.success) {
+
+                            loadPosts();
+                        } else {
+                            // Alert.alert('Lỗi', result.error || 'Không thể đồng bộ');
+                        }
+                    } catch (error) {
+                        console.error('Error syncing comment counts:', error);
+                        // Alert.alert('Lỗi', 'Không thể đồng bộ comment counts');
+                    }
+                }
+            }
+        ]
+    };
+    useEffect(() => {
+        handleSyncCommentCounts();
+    }, []);
+    const openCommentsModal = useCallback((post: Post) => {
         setSelectedPost(post);
         setShowCommentsModal(true);
         loadComments(post.id);
-    };
+    }, []);
 
-    const loadComments = async (postId: string) => {
-        const mockComments: Comment[] = [
-            {
-                id: '1',
-                content: 'Bài viết rất hay!',
-                author: {
-                    id: 'user2',
-                    name: 'Trần Thị B',
-                    avatar: 'https://picsum.photos/100/100?random=user2',
-                },
-                createdAt: new Date(),
-            },
-        ];
-        setComments(mockComments);
-    };
+    const loadComments = useCallback(async (postId: string) => {
+        try {
+            setLoading(true);
+            const response = await getCommentsByPostId(postId);
 
+            if (response.success && response.data) {
+                setComments(response.data);
+                console.log('Loaded comments:', response.data.length);
+            } else {
+                console.error('Error loading comments:', response.error);
+                setComments([]);
+            }
+        } catch (error) {
+            console.error('Error loading comments:', error);
+            setComments([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            // No side effect needed here, so just return nothing
+            return;
+        }, [])
+    );
     const handleAddComment = async () => {
-        if (!newComment.trim() || !selectedPost) return;
+        if (!newComment.trim() || !selectedPost || !session) return;
 
-        const comment: Comment = {
-            id: Date.now().toString(),
-            content: newComment,
-            author: {
-                id: 'user1',
-                name: 'Nguyễn Văn A',
-                avatar: 'https://picsum.photos/100/100?random=user1',
-            },
-            createdAt: new Date(),
-        };
+        try {
+            // Tạo comment trong database
+            const commentData = {
+                postId: selectedPost.id,
+                content: newComment.trim(),
+                authorId: session.user.id,
+            };
 
-        setComments([...comments, comment]);
-        setNewComment('');
+            const response = await createComment(commentData);
 
-        const updatedPosts = posts.map((post) =>
-            post.id === selectedPost.id
-                ? { ...post, comments: post.comments + 1 }
-                : post
-        );
-        setPosts(updatedPosts);
+            if (response.success && response.data) {
+                // Thêm comment mới vào danh sách local using functional update
+                setComments(currentComments => [...currentComments, response.data!]);
+                setNewComment('');
+
+                // Refresh post data để cập nhật comment count từ database (comment service đã tự động tăng count)
+                const updatedPost = await refreshPostData(selectedPost.id);
+
+                // Gọi API để tạo notification
+                const userName = session.user.user_metadata.full_name || 'Unknown User';
+                const notificationResult = await commentOnPost(
+                    selectedPost.id,
+                    session.user.id,
+                    userName,
+                    newComment.trim()
+                );
+
+                if (!notificationResult.success) {
+                    console.error('Error creating notification:', notificationResult.error);
+                }
+
+                console.log('Comment created successfully with auto count update');
+            } else {
+                console.error('Error creating comment:', response.error);
+                Alert.alert('Lỗi', 'Không thể tạo bình luận. Vui lòng thử lại.');
+            }
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            Alert.alert('Lỗi', 'Có lỗi xảy ra khi tạo bình luận.');
+        }
     };
 
     // const formatDate = (date: Date) => {
@@ -815,25 +1093,36 @@ export default function HomeScreen(): JSX.Element {
     //     });
     // };
 
-    const renderComment = ({ item: comment }: { item: Comment }) => (
-        <View style={styles.commentItem}>
-            <Image
-                source={{ uri: comment.author.avatar }}
-                style={styles.commentAvatar}
-            />
-            <View style={styles.commentContent}>
-                <View style={styles.commentBubble}>
-                    <Text style={styles.commentAuthor}>
-                        {comment.author.name}
-                    </Text>
-                    <Text style={styles.commentText}>{comment.content}</Text>
+    const renderComment = useCallback(({ item: comment }: { item: Comment }) => {
+        // Check nếu comment hoặc author bị undefined
+        if (!comment || !comment.author) {
+            return null;
+        }
+
+        return (
+            <View style={styles.commentItem}>
+                <Image
+                    source={{ 
+                        uri: comment.author.avatar || 'https://via.placeholder.com/40',
+                        cache: 'force-cache'
+                    }}
+                    style={styles.commentAvatar}
+                    defaultSource={require('../../../assets/avatar.png')}
+                />
+                <View style={styles.commentContent}>
+                    <View style={styles.commentBubble}>
+                        <Text style={styles.commentAuthor}>
+                            {comment.author.name || 'Unknown User'}
+                        </Text>
+                        <Text style={styles.commentText}>{comment.content}</Text>
+                    </View>
+                    {/* <Text style={styles.commentDate}>
+                        {formatDate(comment.createdAt)}
+                    </Text> */}
                 </View>
-                {/* <Text style={styles.commentDate}>
-                    {formatDate(comment.createdAt)}
-                </Text> */}
             </View>
-        </View>
-    );
+        );
+    }, []);
 
     const CreatePostForm = useMemo(() => (
         <KeyboardAvoidingView
@@ -999,6 +1288,7 @@ export default function HomeScreen(): JSX.Element {
                 >
                     <Ionicons name="image" size={24} color="#45b7d1" />
                 </TouchableOpacity>
+
             </View>
 
             {/* Posts List */}
@@ -1010,6 +1300,16 @@ export default function HomeScreen(): JSX.Element {
                 contentContainerStyle={styles.postsList}
                 refreshing={loading}
                 onRefresh={loadPosts}
+                initialNumToRender={5}
+                maxToRenderPerBatch={5}
+                windowSize={10}
+                removeClippedSubviews={true}
+                updateCellsBatchingPeriod={50}
+                getItemLayout={(data, index) => ({
+                    length: 400, // Estimated height of each post
+                    offset: 400 * index,
+                    index,
+                })}
             />
 
             {/* Create Post Modal */}
@@ -1291,6 +1591,10 @@ export default function HomeScreen(): JSX.Element {
                         renderItem={renderComment}
                         keyExtractor={(item) => item.id}
                         style={styles.commentsList}
+                        initialNumToRender={10}
+                        maxToRenderPerBatch={10}
+                        windowSize={5}
+                        removeClippedSubviews={true}
                     />
 
                     <View style={styles.commentInputContainer}>
@@ -1311,7 +1615,7 @@ export default function HomeScreen(): JSX.Element {
             </Modal>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {

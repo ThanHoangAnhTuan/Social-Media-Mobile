@@ -1,3 +1,4 @@
+import NotificationBadge from '@/src/components/notifications/NotificationBadge';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,10 +10,10 @@ import NotificationsScreen from '@screens/App/NotificationsScreen';
 import React from 'react';
 import PersonalScreen from '../screens/App/PersonalScreen';
 import ProfileScreen from '../screens/App/ProfileScreen';
-import { FriendsStackParamList, ProfileStackParamList, TabParamList } from '../types/route';
+import { FriendsStackParamList, HomeStackParamList, ProfileStackParamList, TabParamList } from '../types/route';
 
 const Tab = createBottomTabNavigator<TabParamList>();
-const HomeStack = createNativeStackNavigator();
+const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const FriendsStack = createNativeStackNavigator<FriendsStackParamList>();
 const NotificationStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
@@ -103,16 +104,18 @@ export default function TabsNavigator() {
                 component={NotificationStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <MaterialIcons
-                            name="notifications"
-                            size={24}
-                            color={color}
-                        />
+                        <NotificationBadge>
+                            <MaterialIcons
+                                name="notifications"
+                                size={24}
+                                color={color}
+                            />
+                        </NotificationBadge>
                     ),
                 }}
             />
             <Tab.Screen
-                name="Profile"
+                name="Menu"
                 component={ProfileStackScreen}
                 options={{
                     tabBarIcon: ({ color }) => (

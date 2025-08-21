@@ -31,9 +31,9 @@ export default function FriendsScreen() {
     const [isSearching, setIsSearching] = useState<boolean>(false);
 
     const handleAcceptRequest = async (request: FriendRequest) => {
-        console.log("Accepting friend request:", request.id);
+        // console.log("Accepting friend request:", request.id);
         const success = await acceptFriendRequest(request.id);
-        console.log("Accept friend request success:", success);
+        // console.log("Accept friend request success:", success);
         if (success) {
             setFriendRequests((prevRequests) =>
                 prevRequests.filter((req) => req.id !== request.id)
@@ -64,7 +64,7 @@ export default function FriendsScreen() {
         }
         setCurrentUserId(user.id);
         const currentUserId = user.id;
-        console.log("Current User ID:", currentUserId);
+        // console.log("Current User ID:", currentUserId);
         const supabaseUrl = SUPABASE_URL;
         const { data: userInfoList, error } = await supabase
             .from('friendships')
@@ -80,9 +80,9 @@ export default function FriendsScreen() {
             .or('status.eq.pending,status.is.null')
             .order('created_at', { ascending: false });
 
-        console.log("Query executed with addressee_id:", currentUserId);
-        console.log("Friend requests query result:", userInfoList);
-        console.log("Query error:", error);
+        // console.log("Query executed with addressee_id:", currentUserId);
+        // console.log("Friend requests query result:", userInfoList);
+        // console.log("Query error:", error);
         if (error) {
             console.error('Error fetching friend requests:', error);
             return;
@@ -92,15 +92,21 @@ export default function FriendsScreen() {
         const formattedRequests = userInfoList.map((userItem: any) => {
             let avatarSource;
 
-            if (userItem.avatar?.startsWith('http')) {
-                avatarSource = { uri: userItem.avatar };
-            } else if (userItem.avatar) {
+            // Lấy avatar từ requester info
+            const requesterAvatar = userItem.requester?.avatar;
+            // console.log('Friend request requester avatar:', requesterAvatar, 'for user:', userItem.requester?.full_name);
+
+            if (requesterAvatar?.startsWith('http')) {
+                avatarSource = { uri: requesterAvatar };
+            } else if (requesterAvatar) {
                 avatarSource = {
-                    uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${userItem.avatar}`,
+                    uri: `${supabaseUrl}/storage/v1/object/public/${bucket}/${requesterAvatar}`,
                 };
             } else {
                 avatarSource = require('../../../assets/avatar.png');
             }
+
+            // console.log('Final avatar source for friend request:', avatarSource);
 
             return {
                 id: userItem.id,
@@ -115,8 +121,8 @@ export default function FriendsScreen() {
             };
         });
 
-        console.log("Formatted friend requests:", formattedRequests);
-        console.log("Number of friend requests found:", formattedRequests.length);
+        // console.log("Formatted friend requests:", formattedRequests);
+        // console.log("Number of friend requests found:", formattedRequests.length);
         setFriendRequests(formattedRequests);
     };
 
@@ -147,6 +153,8 @@ export default function FriendsScreen() {
             const formattedUsers = users.map((user: any) => {
                 let avatarSource;
 
+                console.log('Search user avatar:', user.avatar, 'for user:', user.full_name);
+
                 if (user.avatar?.startsWith('http')) {
                     avatarSource = { uri: user.avatar };
                 } else if (user.avatar) {
@@ -156,6 +164,8 @@ export default function FriendsScreen() {
                 } else {
                     avatarSource = require('../../../assets/avatar.png');
                 }
+
+                console.log('Search user final avatar source:', avatarSource);
 
                 return {
                     id: user.id,

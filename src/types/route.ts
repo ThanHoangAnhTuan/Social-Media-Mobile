@@ -14,11 +14,29 @@ export type RootStackParamList = {
     Personal: { userId?: string };
 };
 
+export type HomeStackParamList = {
+    HomeContent: {
+        scrollToPost?: string;
+        fromNotification?: boolean;
+    } | undefined;
+};
+
 export type TabParamList = {
-    Home: undefined;
-    Friends: undefined;
+    Home: { 
+        screen?: string;
+        params?: {
+            scrollToPost?: string;
+            fromNotification?: boolean;
+        };
+    } | undefined;
+    Friends: { 
+        screen?: string;
+        params?: {
+            fromNotification?: boolean;
+        };
+    } | undefined;
     Notifications: undefined;
-    Profile: undefined;
+    Menu: undefined;
     PersonalScreen: { userId: string };
 };
 
@@ -29,7 +47,11 @@ export type ProfileStackParamList = {
 
 export type FriendsStackParamList = {
     FriendsContent: { userId: string };
-    FriendsRequest: { currentUserId: string; friendRequests: FriendRequest[] };
+    FriendsRequest: { 
+        currentUserId: string; 
+        friendRequests: FriendRequest[];
+        fromNotification?: boolean;
+    };
     PersonalContent: { userId: string };
 };
 
