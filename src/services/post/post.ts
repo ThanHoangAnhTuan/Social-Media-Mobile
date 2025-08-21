@@ -16,6 +16,20 @@ import { ServiceResponse } from '@/src/types/response';
 import { createNotification } from '../notification/notification';
 import { getUserAvatar } from '../user/UserInfo';
 
+// Helper function to process media URLs
+const processMediaUrls = (media: any): MediaItem[] => {
+    if (!media || !Array.isArray(media)) {
+        return [];
+    }
+    
+    return media.map((item: any) => ({
+        ...item,
+        uri: item.uri && item.uri.startsWith('http') 
+            ? item.uri 
+            : `https://arrsejmhxfisnnhybfma.supabase.co/storage/v1/object/public/uploads/${item.uri || ''}`
+    }));
+};
+
 const uploadMediaToStorage = async (
     mediaItems: MediaItem[],
     userId: string
@@ -92,7 +106,7 @@ const createPost = async (
                 user_id: postData.authorId,
                 content: postData.content,
                 location: postData.location || null,
-                media: uploadedMedia || null,
+                media: uploadedMedia || [],
                 likes: 0,
                 comments: 0,
                 shares: 0,
@@ -765,7 +779,7 @@ const getAllPosts = async (): Promise<ServiceResponse<Post[]>> => {
             return {
                 id: post.id,
                 content: post.content,
-                media: post.media || [],
+                media: processMediaUrls(post.media),
                 location: post.location || null,
                 feelingActivity: post.feeling_activity || null,
                 privacy: post.privacy || 'public',
@@ -841,7 +855,7 @@ const getPostsByUserId = async (
             return {
                 id: post.id,
                 content: post.content,
-                media: post.media || null,
+                media: processMediaUrls(post.media),
                 location: post.location || null,
                 feelingActivity: post.feeling_activity || null,
                 privacy: post.privacy,
