@@ -73,7 +73,7 @@ const PostItem = memo(({
     onEdit,
     onComment,
     onShare,
-      onNavigateToDetail,
+    onNavigateToDetail,
     onNavigateToProfile,
     renderMediaGrid
 }: {
@@ -278,7 +278,7 @@ export default memo(function HomeScreen(): JSX.Element {
 
     const [avatar, setAvatar] = useState<string>('');
     const [searchingForPost, setSearchingForPost] = useState<string | null>(null);
-    
+
     // States cho ImageViewer
     const [showImageViewer, setShowImageViewer] = useState<boolean>(false);
     const [viewingImages, setViewingImages] = useState<MediaItem[]>([]);
@@ -390,7 +390,7 @@ export default memo(function HomeScreen(): JSX.Element {
 
     useEffect(() => {
         requestPermissions();
-    }, []); 
+    }, []);
 
     useEffect(() => {
         if (session) {
@@ -802,7 +802,7 @@ export default memo(function HomeScreen(): JSX.Element {
                 // 4 or more images - 2x2 grid
                 const itemWidth = (screenWidth - 2) / 2;
                 const itemHeight = (containerHeight - 2) / 2;
-                
+
                 if (index === 0) {
                     itemStyle = {
                         width: itemWidth,
@@ -835,8 +835,8 @@ export default memo(function HomeScreen(): JSX.Element {
             }
 
             return (
-                <TouchableOpacity 
-                    key={item.id} 
+                <TouchableOpacity
+                    key={item.id}
                     style={[styles.mediaItem, itemStyle]}
                     onPress={() => openImageViewer(media, index)}
                 >
@@ -867,10 +867,10 @@ export default memo(function HomeScreen(): JSX.Element {
         };
 
         return (
-            <View style={[styles.mediaContainer, { 
-                height: media.length === 1 ? containerHeight : 
-                       media.length === 2 ? containerHeight : 
-                       media.length === 3 ? containerHeight : containerHeight,
+            <View style={[styles.mediaContainer, {
+                height: media.length === 1 ? containerHeight :
+                    media.length === 2 ? containerHeight :
+                        media.length === 3 ? containerHeight : containerHeight,
                 flexDirection: 'row',
                 flexWrap: 'wrap',
                 justifyContent: 'flex-start'
@@ -992,7 +992,7 @@ export default memo(function HomeScreen(): JSX.Element {
             // Gọi API toggle like (không optimistic update để tránh conflict)
             const userName = session.user.user_metadata.full_name || 'Unknown User';
             console.log('Calling toggleLike with data:', { userId: session.user.id, postId, userName });
-            
+
             const result = await toggleLike({
                 userId: session.user.id,
                 postId: postId,
@@ -1195,7 +1195,7 @@ export default memo(function HomeScreen(): JSX.Element {
                                         const postResponse = await getPostById(selectedPost.id);
                                         if (postResponse.success && postResponse.data) {
                                             const updatedPost = postResponse.data;
-                                            
+
                                             // Update posts list with fresh data from database
                                             setPosts(currentPosts =>
                                                 currentPosts.map((post) =>
@@ -1422,12 +1422,7 @@ export default memo(function HomeScreen(): JSX.Element {
                 </View>
             </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
-    ), [postContent,
-        selectedBackground,
-        selectedLocation,
-        selectedFeelingActivity,
-        postPrivacy]);
-
+    ), [postContent, selectedBackground, selectedLocation, selectedFeelingActivity, postPrivacy, selectedMedia]);
     return (
         <View style={styles.container}>
             {/*Header */}
@@ -1822,10 +1817,10 @@ export default memo(function HomeScreen(): JSX.Element {
                                         />
                                         {image.type === 'video' && (
                                             <View style={styles.videoOverlay}>
-                                                <Ionicons 
-                                                    name="play-circle" 
-                                                    size={80} 
-                                                    color="rgba(255,255,255,0.9)" 
+                                                <Ionicons
+                                                    name="play-circle"
+                                                    size={80}
+                                                    color="rgba(255,255,255,0.9)"
                                                 />
                                             </View>
                                         )}
@@ -2011,7 +2006,7 @@ const styles = StyleSheet.create({
     },
     singleImage: {
         width: '100%',
-        height: 400, 
+        height: 400,
         resizeMode: 'cover',
     },
     twoImagesContainer: {
