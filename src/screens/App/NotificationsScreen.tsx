@@ -26,11 +26,6 @@ export default function NotificationsScreen() {
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // useEffect(() => {
-    //     if (session?.user?.id) {
-    //         fetchNotifications();
-    //     }
-    // }, [session]);
     useFocusEffect(
         useCallback(() => {
             if (session?.user?.id) {
