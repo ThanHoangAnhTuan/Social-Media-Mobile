@@ -1,6 +1,7 @@
 import { Session } from '@supabase/supabase-js';
 import React, { createContext, FC, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import { supabase } from '@lib/supabase';
 import {
@@ -78,6 +79,13 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
                 }
             },
             signOut: async () => {
+                try {
+                    // Sign out from Google first
+                    await GoogleSignin.signOut();
+                } catch (error) {
+                    console.log('Google sign out error (non-critical):', error);
+                }
+
                 const { error } = await supabase.auth.signOut();
 
                 if (error) {

@@ -5,6 +5,7 @@ import { AuthContext } from '@context/AuthContext';
 import AuthNavigator from '@navigation/AuthNavigator';
 import DrawerNavigator from '@navigation/DrawerNavigator';
 import EditProfileScreen from '@screens/App/EditProfileScreen';
+import PostDetailScreen from '@screens/App/PostDetailScreen';
 import PersonalScreen from '../screens/App/PersonalScreen';
 import { RootStackParamList } from '../types/route';
 
@@ -27,6 +28,10 @@ export default function RootNavigator() {
                     <RootStack.Screen
                         name="Personal"
                         component={PersonalScreen}
+                    />
+                    <RootStack.Screen
+                        name="PostDetail"
+                        component={PostDetailScreen}
                     />
                     
                 </RootStack.Group>

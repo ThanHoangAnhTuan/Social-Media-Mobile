@@ -147,19 +147,44 @@ export default function NotificationsScreen() {
 
                 case 'like':
                 case 'comment':
-                    // Navigate to Home screen and scroll to specific post
-                    const postId = item.data?.postId;
-                    if (postId) {
-                        console.log('Navigate to post:', postId);
-                        navigation.navigate('Home', {
-                            screen: 'HomeContent',
-                            params: {
-                                scrollToPost: postId,
-                                fromNotification: true
+                    // Navigate directly to PostDetailScreen
+                    let postId = item.data?.postId;
+                    
+                    // Handle malformed data - if data is an object with numeric keys, reconstruct it
+                    if (!postId && typeof item.data === 'object') {
+                        try {
+                            // Check if data has numeric keys (malformed JSON)
+                            const keys = Object.keys(item.data);
+                            if (keys.some(key => !isNaN(Number(key)))) {
+                                // Reconstruct the string from numeric keys
+                                const reconstructedString = keys
+                                    .filter(key => !isNaN(Number(key)))
+                                    .sort((a, b) => Number(a) - Number(b))
+                                    .map(key => item.data[key])
+                                    .join('');
+                                
+                                console.log('Reconstructed string:', reconstructedString);
+                                
+                                // Parse the reconstructed JSON string
+                                const parsedData = JSON.parse(reconstructedString);
+                                postId = parsedData.postId;
+                                console.log('Parsed postId:', postId);
                             }
+                        } catch (error) {
+                            console.error('Error parsing malformed notification data:', error);
+                        }
+                    }
+                    
+                    if (postId) {
+                        console.log('Navigate to PostDetail:', postId);
+                        console.log('Original notification data:', item.data);
+                        navigation.navigate('PostDetail', { 
+                            postId: postId,
+                            fromNotification: true 
                         });
                     } else {
-                        // console.warn('No postId found in notification:', item);
+                        console.warn('No postId found in notification:', item);
+                        console.warn('Full notification data:', JSON.stringify(item.data, null, 2));
                         // Fallback to Home if no postId
                         navigation.navigate('Home');
                         Alert.alert('Thông báo', 'Không thể tìm thấy bài viết này');

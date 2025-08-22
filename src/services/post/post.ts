@@ -15,6 +15,7 @@ import {
 import { ServiceResponse } from '@/src/types/response';
 import { createNotification } from '../notification/notification';
 import { getUserAvatar } from '../user/UserInfo';
+import { getFriendshipStatus } from '../friend/friend';
 
 // Helper function to process media URLs
 const processMediaUrls = (media: any): MediaItem[] => {
@@ -420,7 +421,7 @@ const changePrivacyLevel = async (
 
 const getPostById = async (postId: string): Promise<ServiceResponse<Post>> => {
     try {
-        const { data, error } = await supabase
+        const { data: post, error } = await supabase
             .from('posts')
             .select('*')
             .eq('id', postId)
@@ -430,7 +431,128 @@ const getPostById = async (postId: string): Promise<ServiceResponse<Post>> => {
             return { success: false, error: error.message };
         }
 
-        return { success: true, data };
+        if (!post) {
+            return { success: false, error: 'Không tìm thấy bài viết' };
+        }
+
+        // Lấy thông tin user
+        const { data: userInfo, error: userError } = await supabase
+            .from('user_info')
+            .select('id, full_name, avatar')
+            .eq('id', post.user_id)
+            .single();
+
+        if (userError) {
+            console.error('Error fetching user info:', userError);
+        }
+
+        // Format post cho UI
+        const formattedPost: Post = {
+            id: post.id,
+            content: post.content,
+            media: post.media || [],
+            location: post.location || null,
+            feelingActivity: post.feeling_activity || null,
+            privacy: post.privacy || 'public',
+            likes: post.likes || 0,
+            comments: post.comments || 0,
+            shares: post.shares || 0,
+            isLiked: false,
+            createdAt: new Date(post.created_at),
+            author: {
+                id: post.user_id,
+                name: userInfo?.full_name || 'Unknown User',
+                avatar: getUserAvatar(userInfo?.avatar) || '',
+            },
+        };
+
+        return { success: true, data: formattedPost };
+    } catch (error) {
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+const getPostByIdWithPrivacy = async (
+    postId: string,
+    currentUserId: string
+): Promise<ServiceResponse<Post>> => {
+    try {
+        const { data: post, error } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('id', postId)
+            .single();
+
+        if (error) {
+            return { success: false, error: error.message };
+        }
+
+        if (!post) {
+            return { success: false, error: 'Không tìm thấy bài viết' };
+        }
+
+        // Kiểm tra privacy
+        const postUserId = post.user_id;
+        
+        // Case 1: Public posts - cho phép truy cập
+        if (post.privacy === 'public') {
+            // Continue to format post
+        }
+        // Case 2: Private posts - chỉ cho phép chủ bài viết
+        else if (post.privacy === 'private') {
+            if (postUserId !== currentUserId) {
+                return { success: false, error: 'Bạn không có quyền xem bài viết này' };
+            }
+        }
+        // Case 3: Friends posts - kiểm tra friendship
+        else if (post.privacy === 'friends') {
+            // Nếu không phải chủ bài viết
+            if (postUserId !== currentUserId) {
+                const friendshipStatus = await getFriendshipStatus(currentUserId, postUserId);
+                
+                // Chỉ cho phép nếu là bạn bè
+                if (friendshipStatus.status !== 'accepted') {
+                    return { success: false, error: 'Bạn không có quyền xem bài viết này' };
+                }
+            }
+        }
+
+        // Lấy thông tin user
+        const { data: userInfo, error: userError } = await supabase
+            .from('user_info')
+            .select('id, full_name, avatar')
+            .eq('id', post.user_id)
+            .single();
+
+        if (userError) {
+            console.error('Error fetching user info:', userError);
+        }
+
+        // Format post cho UI
+        const formattedPost: Post = {
+            id: post.id,
+            content: post.content,
+            media: post.media || [],
+            location: post.location || null,
+            feelingActivity: post.feeling_activity || null,
+            privacy: post.privacy || 'public',
+            likes: post.likes || 0,
+            comments: post.comments || 0,
+            shares: post.shares || 0,
+            isLiked: false,
+            createdAt: new Date(post.created_at),
+            author: {
+                id: post.user_id,
+                name: userInfo?.full_name || 'Unknown User',
+                avatar: getUserAvatar(userInfo?.avatar) || '',
+            },
+        };
+
+        return { success: true, data: formattedPost };
     } catch (error) {
         return {
             success: false,
@@ -808,6 +930,126 @@ const getAllPosts = async (): Promise<ServiceResponse<Post[]>> => {
     }
 };
 
+const getAllPostsWithPrivacy = async (
+    currentUserId: string
+): Promise<ServiceResponse<Post[]>> => {
+    try {
+        console.log('Fetching posts with privacy filtering for user:', currentUserId);
+
+        // Bước 1: Lấy tất cả posts
+        const { data: posts, error: postError } = await supabase
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        if (postError) {
+            console.error('Error fetching posts:', postError);
+            return { success: false, error: postError.message };
+        }
+
+        if (!posts || posts.length === 0) {
+            console.log('No posts found');
+            return { success: true, data: [] };
+        }
+
+        // Bước 2: Filter posts dựa trên privacy
+        const filteredPosts = [];
+        
+        for (const post of posts) {
+            const postUserId = post.user_id;
+            
+            // Case 1: Public posts - hiển thị cho mọi người
+            if (post.privacy === 'public') {
+                filteredPosts.push(post);
+                continue;
+            }
+            
+            // Case 2: Private posts - chỉ hiển thị cho chính chủ
+            if (post.privacy === 'private') {
+                if (postUserId === currentUserId) {
+                    filteredPosts.push(post);
+                }
+                continue;
+            }
+            
+            // Case 3: Friends posts - kiểm tra friendship
+            if (post.privacy === 'friends') {
+                // Nếu là post của chính mình
+                if (postUserId === currentUserId) {
+                    filteredPosts.push(post);
+                    continue;
+                }
+                
+                // Kiểm tra friendship status
+                const friendshipStatus = await getFriendshipStatus(currentUserId, postUserId);
+                
+                // Chỉ hiển thị nếu là bạn bè (status = 'accepted')
+                if (friendshipStatus.status === 'accepted') {
+                    filteredPosts.push(post);
+                }
+                continue;
+            }
+        }
+
+        // Bước 3: Lấy thông tin users cho các posts đã filter
+        const userIds = [...new Set(filteredPosts.map((post) => post.user_id))];
+
+        if (userIds.length === 0) {
+            return { success: true, data: [] };
+        }
+
+        const { data: users, error: userError } = await supabase
+            .from('user_info')
+            .select('id, full_name, avatar')
+            .in('id', userIds);
+
+        if (userError) {
+            console.error('Error fetching users:', userError);
+            return { success: false, error: userError.message };
+        }
+
+        // Tạo map để lookup user info nhanh
+        const userMap = new Map();
+        users?.forEach((user) => {
+            userMap.set(user.id, user);
+        });
+
+        // Bước 4: Format posts
+        const formattedPosts: Post[] = filteredPosts.map((post) => {
+            const userInfo = userMap.get(post.user_id);
+
+            return {
+                id: post.id,
+                content: post.content,
+                media: post.media || [],
+                location: post.location || null,
+                feelingActivity: post.feeling_activity || null,
+                privacy: post.privacy || 'public',
+                likes: post.likes || 0,
+                comments: post.comments || 0,
+                shares: post.shares || 0,
+                isLiked: false,
+                createdAt: new Date(post.created_at),
+                author: {
+                    id: post.user_id,
+                    name: userInfo?.full_name || 'Unknown User',
+                    avatar: getUserAvatar(userInfo?.avatar) || 'https://via.placeholder.com/50',
+                },
+            };
+        });
+
+        console.log(`Fetched ${formattedPosts.length} posts with privacy filtering`);
+        return { success: true, data: formattedPosts };
+    } catch (error) {
+        console.error('Error in getAllPostsWithPrivacy:', error);
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
 const getPostsByUserId = async (
     userId: string
 ): Promise<ServiceResponse<Post[]>> => {
@@ -876,6 +1118,99 @@ const getPostsByUserId = async (
         // console.log('Posts raw:', posts);
         // console.log('User:', user);
 
+        return { success: true, data: formattedPosts || [] };
+    } catch (error) {
+        return {
+            success: false,
+            error:
+                error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
+const getPostsByUserIdWithPrivacy = async (
+    targetUserId: string,
+    currentUserId: string
+): Promise<ServiceResponse<Post[]>> => {
+    try {
+        // Bước 1: Lấy tất cả posts của target user
+        const { data: posts, error: postError } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('user_id', targetUserId)
+            .order('created_at', { ascending: false });
+
+        if (postError) {
+            return { success: false, error: postError.message };
+        }
+
+        // Bước 2: Lấy thông tin target user
+        const { data: user, error: userError } = await supabase
+            .from('user_info')
+            .select('id, full_name, avatar')
+            .eq('id', targetUserId)
+            .single();
+
+        if (userError) {
+            return { success: false, error: userError.message };
+        }
+
+        if (!user) {
+            return { success: false, error: 'User not found' };
+        }
+
+        // Bước 3: Filter posts dựa trên privacy và relationship
+        const filteredPosts = [];
+        
+        // Nếu đang xem profile của chính mình - hiển thị tất cả posts
+        if (targetUserId === currentUserId) {
+            filteredPosts.push(...posts);
+        } else {
+            // Kiểm tra friendship status một lần
+            const friendshipStatus = await getFriendshipStatus(currentUserId, targetUserId);
+            const isFriend = friendshipStatus.status === 'accepted';
+            
+            for (const post of posts) {
+                // Public posts - hiển thị cho mọi người
+                if (post.privacy === 'public') {
+                    filteredPosts.push(post);
+                }
+                // Friends posts - chỉ hiển thị cho bạn bè
+                else if (post.privacy === 'friends' && isFriend) {
+                    filteredPosts.push(post);
+                }
+                // Private posts - không hiển thị cho người khác
+                // (đã bị loại bỏ bằng cách không thêm vào filteredPosts)
+            }
+        }
+
+        // Bước 4: Format posts
+        const formattedPosts = filteredPosts.map((post) => {
+            const createdAt = post.created_at ? new Date(post.created_at) : new Date();
+            const updatedAt = post.updated_at ? new Date(post.updated_at) : undefined;
+
+            return {
+                id: post.id,
+                content: post.content,
+                media: post.media || null,
+                location: post.location || null,
+                feelingActivity: post.feeling_activity || null,
+                privacy: post.privacy,
+                likes: post.likes,
+                comments: post.comments,
+                shares: post.shares,
+                isLiked: post.isLiked,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                author: {
+                    id: user.id,
+                    name: user.full_name,
+                    avatar: getUserAvatar(user.avatar) || 'https://via.placeholder.com/50',
+                },
+            };
+        });
+
+        console.log(`Fetched ${formattedPosts.length} posts for user ${targetUserId} with privacy filtering`);
         return { success: true, data: formattedPosts || [] };
     } catch (error) {
         return {
@@ -1097,7 +1432,7 @@ const syncAllCommentCounts = async (): Promise<ServiceResponse<any>> => {
 };
 
 export {
-    changePrivacyLevel, commentOnPost, createPost, createSmartUpdateData, decrementCommentCount, decrementLikeCount, decrementShareCount, deletePost, getAllPosts, getPostById,
-    getPosts, getPostsByUserId, hardDeletePost, incrementCommentCount, incrementLikeCount, incrementShareCount, likePost, syncAllCommentCounts, syncCommentCount, updatePost
+    changePrivacyLevel, commentOnPost, createPost, createSmartUpdateData, decrementCommentCount, decrementLikeCount, decrementShareCount, deletePost, getAllPosts, getAllPostsWithPrivacy, getPostById, getPostByIdWithPrivacy,
+    getPosts, getPostsByUserId, getPostsByUserIdWithPrivacy, hardDeletePost, incrementCommentCount, incrementLikeCount, incrementShareCount, likePost, syncAllCommentCounts, syncCommentCount, updatePost
 };
 

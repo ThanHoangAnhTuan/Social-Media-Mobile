@@ -6,6 +6,7 @@ import TabsNavigator from '@navigation/TabsNavigator';
 import CustomDrawerContent from '@components/drawer/CustomDrawerContent';
 import { DrawerParamList } from '../types/route';
 import EditProfileScreen from '../screens/App/EditProfileScreen';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
@@ -38,11 +39,24 @@ export default function DrawerNavigator() {
             <Drawer.Screen
                 name="Home"
                 component={TabsNavigator}
-                options={({ route }) => ({
-                    drawerIcon: ({ color, size }) => (
-                        <FontAwesome6 name="house" size={size} color={color} />
-                    ),
-                })}
+                // options={({ route }) => ({
+                //     drawerIcon: ({ color, size }) => (
+                //         <FontAwesome6 name="house" size={size} color={color} />
+                //     ),
+                // })}
+
+                options={({ route }) => {
+                    console.log(route);
+                    const routeName = getFocusedRouteNameFromRoute(route) ?? 'Home'; 
+                    console.log(routeName);
+                    
+                    return {
+                        headerShown: routeName !== 'Menu',
+                        drawerIcon: ({ color, size }) => (
+                            <FontAwesome6 name="house" size={size} color={color} />
+                        ),
+                    };
+                }}
             />
         </Drawer.Navigator>
     );

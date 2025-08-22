@@ -16,7 +16,8 @@ import {
     TextInput,
     TouchableOpacity,
     TouchableWithoutFeedback,
-    View
+    View,
+    StatusBar
 } from 'react-native';
 
 import { PRIVACY_OPTIONS } from '@/src/constants/Post';
@@ -76,6 +77,11 @@ export default function PersonalScreen(): JSX.Element {
     const [coverPhotoUri, setCoverPhotoUri] = useState<string | null>(null); // ảnh bìa mới
     const [coverPhotoLoading, setCoverPhotoLoading] = useState<boolean>(false);
     const [imagePickerType, setImagePickerType] = useState<'avatar' | 'cover'>('avatar'); // loại ảnh đang chọn
+    
+    // States cho ImageViewer
+    const [showImageViewer, setShowImageViewer] = useState<boolean>(false);
+    const [viewingImages, setViewingImages] = useState<MediaItem[]>([]);
+    const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
 
     // States for editing posts
     const [showEditPostModal, setShowEditPostModal] = useState<boolean>(false);
@@ -254,6 +260,30 @@ export default function PersonalScreen(): JSX.Element {
         }
     };
 
+    // Functions cho ImageViewer
+    const openImageViewer = useCallback((images: MediaItem[], startIndex: number = 0) => {
+        setViewingImages(images);
+        setCurrentImageIndex(startIndex);
+        setShowImageViewer(true);
+    }, []);
+
+    const closeImageViewer = useCallback(() => {
+        setShowImageViewer(false);
+        setViewingImages([]);
+        setCurrentImageIndex(0);
+    }, []);
+
+    const goToNextImage = useCallback(() => {
+        if (currentImageIndex < viewingImages.length - 1) {
+            setCurrentImageIndex(currentImageIndex + 1);
+        }
+    }, [currentImageIndex, viewingImages.length]);
+
+    const goToPreviousImage = useCallback(() => {
+        if (currentImageIndex > 0) {
+            setCurrentImageIndex(currentImageIndex - 1);
+        }
+    }, [currentImageIndex]);
     const handleEditPost = (post: Post) => {
         setEditingPost(post);
         setEditPostContent(post.content);
@@ -638,23 +668,87 @@ export default function PersonalScreen(): JSX.Element {
             return null;
         }
 
+        const screenWidth = Dimensions.get('window').width; // Full screen width
+        const containerHeight = 300; // Increased height
+
         const renderMediaItem = (item: MediaItem, index: number) => {
             const isVideo = item.type === 'video';
 
             // Calculate dimensions based on media count
             let itemStyle = {};
+
             if (media.length === 1) {
-                itemStyle = styles.singleMedia;
+                itemStyle = {
+                    width: screenWidth,
+                    height: containerHeight,
+                    marginRight: 0,
+                    marginBottom: 0,
+                };
             } else if (media.length === 2) {
-                itemStyle = styles.doubleMedia;
+                itemStyle = {
+                    width: (screenWidth - 2) / 2,
+                    height: containerHeight,
+                    marginRight: index === 0 ? 2 : 0,
+                    marginBottom: 0,
+                };
             } else if (media.length === 3) {
-                itemStyle = index === 0 ? styles.tripleMediaLarge : styles.tripleMediaSmall;
+                if (index === 0) {
+                    itemStyle = {
+                        width: screenWidth,
+                        height: containerHeight * 0.6,
+                        marginRight: 0,
+                        marginBottom: 2,
+                    };
+                } else {
+                    itemStyle = {
+                        width: (screenWidth - 2) / 2,
+                        height: containerHeight * 0.4 - 2,
+                        marginRight: index === 1 ? 2 : 0,
+                        marginBottom: 0,
+                    };
+                }
             } else {
-                itemStyle = styles.quadMedia;
+                // 4 or more images - 2x2 grid
+                const itemWidth = (screenWidth - 2) / 2;
+                const itemHeight = (containerHeight - 2) / 2;
+                
+                if (index === 0) {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 2,
+                        marginBottom: 2,
+                    };
+                } else if (index === 1) {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 0,
+                        marginBottom: 2,
+                    };
+                } else if (index === 2) {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 2,
+                        marginBottom: 0,
+                    };
+                } else {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 0,
+                        marginBottom: 0,
+                    };
+                }
             }
 
             return (
-                <View key={item.id} style={[styles.mediaItem, itemStyle]}>
+                <TouchableOpacity 
+                    key={item.id} 
+                    style={[styles.mediaItem, itemStyle]}
+                    onPress={() => openImageViewer(media, index)}
+                >
                     <Image
                         source={{
                             uri: item.uri || 'https://via.placeholder.com/300x200?text=Image+Not+Found'
@@ -681,12 +775,19 @@ export default function PersonalScreen(): JSX.Element {
                             </Text>
                         </View>
                     )}
-                </View>
+                </TouchableOpacity>
             );
         };
 
         return (
-            <View style={styles.mediaContainer}>
+            <View style={[styles.mediaContainer, { 
+                height: media.length === 1 ? containerHeight : 
+                       media.length === 2 ? containerHeight : 
+                       media.length === 3 ? containerHeight : containerHeight,
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start'
+            }]}>
                 {media.slice(0, 4).map((item, index) => renderMediaItem(item, index))}
             </View>
         );
@@ -1607,6 +1708,64 @@ export default function PersonalScreen(): JSX.Element {
                     </Modal>
                 </View>
             </TouchableWithoutFeedback>
+
+            {/* ImageViewer Modal */}
+            <Modal
+                visible={showImageViewer}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={closeImageViewer}
+            >
+                <StatusBar hidden />
+                <View style={styles.imageViewerContainer}>
+                    <TouchableOpacity 
+                        style={styles.imageViewerCloseButton}
+                        onPress={closeImageViewer}
+                    >
+                        <Ionicons name="close" size={30} color="white" />
+                    </TouchableOpacity>
+
+                    <View style={styles.imageViewerContent}>
+                        <Image
+                            source={{ uri: viewingImages[currentImageIndex]?.uri }}
+                            style={styles.imageViewerImage}
+                            resizeMode="contain"
+                        />
+                    </View>
+
+                    {/* Navigation buttons */}
+                    {viewingImages.length > 1 && (
+                        <>
+                            {currentImageIndex > 0 && (
+                                <TouchableOpacity 
+                                    style={[styles.imageViewerNavButton, styles.imageViewerNavLeft]}
+                                    onPress={goToPreviousImage}
+                                >
+                                    <Ionicons name="chevron-back" size={30} color="white" />
+                                </TouchableOpacity>
+                            )}
+
+                            {currentImageIndex < viewingImages.length - 1 && (
+                                <TouchableOpacity 
+                                    style={[styles.imageViewerNavButton, styles.imageViewerNavRight]}
+                                    onPress={goToNextImage}
+                                >
+                                    <Ionicons name="chevron-forward" size={30} color="white" />
+                                </TouchableOpacity>
+                            )}
+                        </>
+                    )}
+
+                    {/* Image counter */}
+                    {viewingImages.length > 1 && (
+                        <View style={styles.imageViewerCounter}>
+                            <Text style={styles.imageViewerCounterText}>
+                                {currentImageIndex + 1} / {viewingImages.length}
+                            </Text>
+                        </View>
+                    )}
+                </View>
+            </Modal>
         </ScrollView>
     );
 }
@@ -1958,6 +2117,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 2,
         backgroundColor: '#f0f2f5',
+        marginHorizontal: -16, // Negative margin to offset parent padding
     },
     mediaItem: {
         position: 'relative',
@@ -2364,7 +2524,60 @@ const styles = StyleSheet.create({
         color: '#374151',
         marginLeft: 16,
     },
-
+    // ImageViewer styles
+    imageViewerContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.95)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageViewerCloseButton: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        zIndex: 1000,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        borderRadius: 20,
+        padding: 8,
+    },
+    imageViewerContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+    },
+    imageViewerImage: {
+        width: '100%',
+        height: '100%',
+    },
+    imageViewerNavButton: {
+        position: 'absolute',
+        top: '50%',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        borderRadius: 25,
+        padding: 10,
+        marginTop: -25,
+    },
+    imageViewerNavLeft: {
+        left: 20,
+    },
+    imageViewerNavRight: {
+        right: 20,
+    },
+    imageViewerCounter: {
+        position: 'absolute',
+        bottom: 50,
+        left: '50%',
+        transform: [{ translateX: -50 }],
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    imageViewerCounterText: {
+        color: 'white',
+        fontSize: 16,
+    },
     // Post action styles
     postActions: {
         flexDirection: 'row',

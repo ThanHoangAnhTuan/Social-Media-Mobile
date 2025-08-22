@@ -20,6 +20,7 @@ const GoogleLoginButton: FC = () => {
     GoogleSignin.configure({
         scopes: ['https://www.googleapis.com/auth/drive.readonly'],
         webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        forceCodeForRefreshToken: true, // Forces account picker
     });
 
     const saveGoogleAvatarToStorage = async (session: Session): Promise<string | null> => {
@@ -72,8 +73,8 @@ const GoogleLoginButton: FC = () => {
         setMessage('');
         try {
             await GoogleSignin.hasPlayServices();
-            // await GoogleSignin.revokeAccess();
-            // await GoogleSignin.signOut();
+            // Force sign out to show account picker
+            await GoogleSignin.signOut();
             const userInfo: SignInResponse = await GoogleSignin.signIn();
             // console.log("1");
             // console.log('userInfo:', JSON.stringify(userInfo, null, 2));

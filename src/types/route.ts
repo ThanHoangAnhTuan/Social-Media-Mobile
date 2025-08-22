@@ -3,6 +3,7 @@ import { FriendRequest } from "./friend";
 export type DrawerParamList = {
     Home: undefined;
     EditProfile: undefined;
+    Menu: undefined;
 };
 
 export type RootStackParamList = {
@@ -12,6 +13,10 @@ export type RootStackParamList = {
     AppDrawer: undefined;
     Test: undefined;
     Personal: { userId?: string };
+    PostDetail: { 
+        postId: string; 
+        fromNotification?: boolean;
+    };
 };
 
 export type HomeStackParamList = {
