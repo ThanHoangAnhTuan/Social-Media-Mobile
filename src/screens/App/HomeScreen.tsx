@@ -1433,12 +1433,7 @@ export default memo(function HomeScreen(): JSX.Element {
                 </View>
             </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
-    ), [postContent,
-        selectedBackground,
-        selectedLocation,
-        selectedFeelingActivity,
-        postPrivacy]);
-
+    ), [postContent, selectedBackground, selectedLocation, selectedFeelingActivity, postPrivacy, selectedMedia]);
     return (
         <View style={styles.container}>
             {/*Header */}
