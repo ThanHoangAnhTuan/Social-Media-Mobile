@@ -26,8 +26,15 @@
         "web": {
             "favicon": "./assets/favicon.png"
         },
-        "plugins": [
-            ["@react-native-google-signin/google-signin"]
-        ]
+        "plugins": [["@react-native-google-signin/google-signin"]],
+        "extra": {
+            "eas": {
+                "projectId": "e86dd980-08e8-4e09-96cd-97e42c44cd28"
+            },
+            "supabaseUrl": "https://arrsejmhxfisnnhybfma.supabase.co",
+            "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFycnNlam1oeGZpc25uaHliZm1hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMzNzA5NDIsImV4cCI6MjA2ODk0Njk0Mn0.I6oD9yWK5xa4A18gcfLA5c1s7r9eXpH3GOkvWPgWQxE",
+            "googleWebClientId": "427466462158-lfb97vd79vd676oti6c49bbihfbm2ii9.apps.googleusercontent.com",
+            "googleAndroidClientId": "427466462158-kv54de1mgila5fbsbp8mmnch19b0p35i.apps.googleusercontent.com"
+        }
     }
 }

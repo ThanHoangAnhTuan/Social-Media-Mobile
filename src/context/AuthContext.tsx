@@ -1,5 +1,7 @@
 import { Session } from '@supabase/supabase-js';
 import React, { createContext, FC, useEffect, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { setSession as setSessionRedux, clearSession as clearSessionRedux } from '../store/sessionSlice';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
@@ -22,11 +24,17 @@ export const AuthContext = createContext<AuthContextType>({
 export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const dispatch = useDispatch();
 
     useEffect(() => {
         const { data: authListener } = supabase.auth.onAuthStateChange(
             async (_event, currentSession) => {
                 setSession(currentSession);
+                if (currentSession) {
+                    dispatch(setSessionRedux({ user: currentSession.user, token: currentSession.access_token }));
+                } else {
+                    dispatch(clearSessionRedux());
+                }
                 setIsLoading(false);
             }
         );
@@ -40,6 +48,11 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
                 console.error('Lỗi khi lấy session ban đầu:', error.message);
             }
             setSession(initialSession);
+            if (initialSession) {
+                dispatch(setSessionRedux({ user: initialSession.user, token: initialSession.access_token }));
+            } else {
+                dispatch(clearSessionRedux());
+            }
             setIsLoading(false);
         };
 
@@ -48,7 +61,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         return () => {
             authListener.subscription.unsubscribe();
         };
-    }, []);
+    }, [dispatch]);
 
     const authFunctions = useMemo<AuthFunctions>(
         () => ({

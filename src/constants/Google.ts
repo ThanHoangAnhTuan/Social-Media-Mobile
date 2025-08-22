@@ -1,3 +1,5 @@
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+import Constants from 'expo-constants'
+
+const GOOGLE_CLIENT_ID = Constants.expoConfig?.extra?.googleWebClientId || '';
 
 export { GOOGLE_CLIENT_ID };
