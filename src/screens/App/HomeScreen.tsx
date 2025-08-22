@@ -1093,7 +1093,20 @@ export default memo(function HomeScreen(): JSX.Element {
             if (response.success && response.data) {
                 setComments(response.data);
                 console.log('Loaded comments:', response.data.length);
-            } else {
+            } else if (comments.length === 0) {
+                // Nếu không có comments, set empty array
+                setComments([]);
+                return (
+                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                        <Ionicons name="notifications-outline" size={64} color="#ccc" />
+                        <Text style={{ fontSize: 18, color: '#666', marginTop: 16, textAlign: 'center' }}>
+                            Chưa có bình luận nào
+                        </Text>
+                    </View>
+                );
+
+            }
+            else {
                 console.error('Error loading comments:', response.error);
                 setComments([]);
             }
