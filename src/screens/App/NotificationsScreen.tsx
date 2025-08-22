@@ -47,14 +47,14 @@ export default function NotificationsScreen() {
             return;
         }
 
-        console.log('Fetching notifications for user:', session.user.id);
+        // console.log('Fetching notifications for user:', session.user.id);
 
         try {
             const notificationData = await getNotifications(session.user.id);
-            console.log('Notifications fetched:', notificationData.length);
+            // console.log('Notifications fetched:', notificationData.length);
 
             if (!notificationData || notificationData.length === 0) {
-                console.log('No notifications found');
+                // console.log('No notifications found');
                 setNotifications([]);
                 setLoading(false);
                 return;
@@ -63,7 +63,7 @@ export default function NotificationsScreen() {
             // Lấy thông tin người gửi cho mỗi notification
             const enrichedNotifications = await Promise.all(
                 notificationData.map(async (notification: any) => {
-                    console.log('Processing notification:', notification);
+                    // console.log('Processing notification:', notification);
 
                     const senderId = notification.senderId;
 
@@ -74,7 +74,7 @@ export default function NotificationsScreen() {
                         .eq('id', senderId)
                         .single();
 
-                    console.log('Sender info for', senderId, ':', senderInfo);
+                    // console.log('Sender info for', senderId, ':', senderInfo);
 
                     const avatarPath = senderInfo?.avatar;
 
@@ -91,7 +91,7 @@ export default function NotificationsScreen() {
                 })
             );
 
-            console.log('Enriched notifications:', enrichedNotifications);
+            // console.log('Enriched notifications:', enrichedNotifications);
             setNotifications(enrichedNotifications);
         } catch (error) {
             console.error('Error fetching notifications:', error);
@@ -129,22 +129,22 @@ export default function NotificationsScreen() {
             switch (item.type) {
                 case 'friend_request':
                     // Navigate to friends screen (Friends tab)
-                    console.log('Navigate to friend requests');
+                    // console.log('Navigate to friend requests');
                     // Get current friend requests
                     const currentUserId = session?.user?.id;
                     if (currentUserId) {
                         const friendRequestsResponse = await getFriendRequests(currentUserId);
-                        navigation.navigate('Friends', { 
+                        navigation.navigate('Friends', {
                             screen: 'FriendsRequest',
-                            params: { 
+                            params: {
                                 currentUserId,
                                 friendRequests: friendRequestsResponse.data || [],
-                                fromNotification: true 
+                                fromNotification: true
                             }
                         });
                     }
                     break;
-                    
+
                 case 'like':
                 case 'comment':
                     // Navigate directly to PostDetailScreen
@@ -190,9 +190,9 @@ export default function NotificationsScreen() {
                         Alert.alert('Thông báo', 'Không thể tìm thấy bài viết này');
                     }
                     break;
-                    
+
                 default:
-                    console.log('Handle other notification types');
+                    // console.log('Handle other notification types');
                     // For unknown types, just navigate to Home
                     navigation.navigate('Home');
             }
@@ -206,7 +206,7 @@ export default function NotificationsScreen() {
         // Debug avatar
         const avatarPath = item.data?.avatar;
         // console.log('Rendering notification avatar:', avatarPath);
-        
+
         let avatarSource;
         if (avatarPath && typeof avatarPath === 'string') {
             if (avatarPath.startsWith('http')) {
@@ -217,12 +217,12 @@ export default function NotificationsScreen() {
         } else {
             avatarSource = require('../../../assets/avatar.png');
         }
-        
+
         // Xử lý trạng thái đã đọc (undefined hoặc null được coi là chưa đọc)
         const isRead = item.is_read === true;
-        
+
         // console.log('Final avatar source:', avatarSource);
-        
+
         return (
             <TouchableOpacity
                 style={[

@@ -22,17 +22,16 @@ import {
 
 import { PRIVACY_OPTIONS } from '@/src/constants/Post';
 import { AuthContext } from '@/src/context/AuthContext';
+import { createComment, deleteComment, getCommentsByPostId } from '@/src/services/comment/comment';
 import { acceptFriendRequest, AddFriendRequest, getFriendsCount, getFriendshipStatus, getUserPhotos, removeFriend } from '@/src/services/friend/friend';
-import { getPostsByUserId } from '@/src/services/post/post';
+import { getPostsLikeStatus, toggleLike } from '@/src/services/like/like';
+import { deletePost, getPostById, getPostsByUserId, updatePost } from '@/src/services/post/post';
 import * as UserService from '@/src/services/user/UserInfo';
 import { GetUserProfile, GetUserProfileById, UpdateUserAvatar, UpdateUserCoverPhoto, UpdateUserProfile } from '@/src/services/user/UserInfo';
 import { UpdateUserInfo, UserInfo } from '@/src/types/auth';
-import { Comment, MediaItem, Post } from '@/src/types/post';
+import { Comment, MediaItem, Post, UpdatePostData } from '@/src/types/post';
 import { FriendsStackParamList, ProfileStackParamList } from '@/src/types/route';
 import * as ImagePicker from 'expo-image-picker';
-
-// Debug: Check if GetUserProfileById is imported correctly
-// console.log('GetUserProfileById function:', typeof GetUserProfileById);
 
 const { width: screenWidth } = Dimensions.get('window');
 const photoSize = (screenWidth - 6) / 3; // 3 columns with 2px margin
@@ -55,7 +54,7 @@ export default function PersonalScreen(): JSX.Element {
     const [originalAvatar, setOriginalAvatar] = useState<string | null>(null);
     const { session } = useContext(AuthContext);
     const route = useRoute<PersonalScreenRouteProp>();
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const [posts, setPosts] = useState<Post[]>([]);
     const [userProfile, setUserProfile] = useState<UserInfo | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
@@ -84,6 +83,15 @@ export default function PersonalScreen(): JSX.Element {
     const [viewingImages, setViewingImages] = useState<MediaItem[]>([]);
     const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
 
+    // States for editing posts
+    const [showEditPostModal, setShowEditPostModal] = useState<boolean>(false);
+    const [editingPost, setEditingPost] = useState<Post | null>(null);
+    const [editPostContent, setEditPostContent] = useState<string>('');
+    const [editPostPrivacy, setEditPostPrivacy] = useState<'public' | 'friends' | 'private'>('public');
+
+    // States for like/comment functionality
+    const [isLiking, setIsLiking] = useState<Set<string>>(new Set());
+
     // Get the userId from route params, or use current user's ID
     const targetUserId = route.params?.userId || session?.user?.id;
     const isOwnProfile = targetUserId === session?.user?.id;
@@ -92,10 +100,6 @@ export default function PersonalScreen(): JSX.Element {
     // Fetch user profile and posts
     const fetchUserProfile = async (session: Session) => {
         try {
-            // console.log('fetchUserProfile called for userId:', targetUserId, 'isOwnProfile:', isOwnProfile);
-            // console.log('UserService:', Object.keys(UserService));
-            // console.log('GetUserProfileById direct:', typeof GetUserProfileById);
-            // console.log('UserService.GetUserProfileById:', typeof UserService.GetUserProfileById);
 
             if (isOwnProfile) {
                 const response = await GetUserProfile(session);
@@ -280,6 +284,91 @@ export default function PersonalScreen(): JSX.Element {
             setCurrentImageIndex(currentImageIndex - 1);
         }
     }, [currentImageIndex]);
+    const handleEditPost = (post: Post) => {
+        setEditingPost(post);
+        setEditPostContent(post.content);
+        setEditPostPrivacy(post.privacy);
+        setShowEditPostModal(true);
+    };
+
+    const handleSaveEditPost = async () => {
+        if (!editingPost || !session) {
+            Alert.alert('Lỗi', 'Thông tin không hợp lệ');
+            return;
+        }
+
+        if (!editPostContent.trim()) {
+            Alert.alert('Lỗi', 'Vui lòng nhập nội dung bài viết');
+            return;
+        }
+
+        try {
+            const updateData: UpdatePostData = {
+                content: editPostContent,
+                privacy: editPostPrivacy,
+                media: editingPost.media, // Keep existing media for now
+            };
+
+            const response = await updatePost(editingPost.id, updateData, session);
+
+            if (response.success && response.data) {
+                // Update local posts state
+                const updatedPosts = posts.map((post) =>
+                    post.id === editingPost.id ? response.data! : post
+                );
+                setPosts(updatedPosts);
+
+                setShowEditPostModal(false);
+                setEditingPost(null);
+                setEditPostContent('');
+                setEditPostPrivacy('public');
+
+                Alert.alert('Thành công', 'Đã cập nhật bài viết');
+            } else {
+                Alert.alert('Lỗi', response.error || 'Không thể cập nhật bài viết');
+            }
+        } catch (error) {
+            console.error('Error updating post:', error);
+            Alert.alert('Lỗi', 'Không thể cập nhật bài viết. Vui lòng thử lại sau.');
+        }
+    };
+
+    const handleDeletePost = async (postId: string) => {
+        Alert.alert(
+            'Xác nhận xóa',
+            'Bạn có chắc chắn muốn xóa bài viết này?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: async () => {
+                        if (!session) {
+                            Alert.alert('Lỗi', 'Bạn cần đăng nhập để xóa bài viết');
+                            return;
+                        }
+
+                        try {
+                            const response = await deletePost(postId, session);
+
+                            if (response.success) {
+                                // Remove the post from local state
+                                setPosts(posts.filter((post) => post.id !== postId));
+                                Alert.alert('Thành công', 'Đã xóa bài viết');
+                            } else {
+                                Alert.alert('Lỗi', response.error || 'Không thể xóa bài viết');
+                            }
+                        } catch (error) {
+                            console.error('Error deleting post:', error);
+                            Alert.alert('Lỗi', 'Không thể xóa bài viết. Vui lòng thử lại sau.');
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+
 
     // Fallback mock loader for posts
     const loadPosts = (session: Session) => {
@@ -301,7 +390,45 @@ export default function PersonalScreen(): JSX.Element {
             console.log('fetchUserPosts response:', response);
             if (response.success && response.data) {
                 console.log('Posts data received:', response.data);
-                setPosts(response.data);
+
+                // Debug media for each post
+                response.data.forEach((post, index) => {
+                    console.log(`Post ${index + 1} (ID: ${post.id}) media:`, post.media);
+                    if (post.media && post.media.length > 0) {
+                        post.media.forEach((mediaItem, mediaIndex) => {
+                            console.log(`  Media ${mediaIndex + 1}:`, {
+                                id: mediaItem.id,
+                                type: mediaItem.type,
+                                uri: mediaItem.uri
+                            });
+                        });
+                    }
+                });
+
+                // Get like status for all posts if user is logged in
+                if (session?.user?.id) {
+                    const posts = response.data;
+                    const postIds = posts.map(post => post.id);
+                    const likeStatusResponse = await getPostsLikeStatus(postIds, session.user.id);
+
+                    if (likeStatusResponse.success && likeStatusResponse.data) {
+                        const likeStatus = likeStatusResponse.data;
+
+                        // Update isLiked based on database
+                        const postsWithLikeStatus = posts.map(post => ({
+                            ...post,
+                            isLiked: likeStatus[post.id] || false
+                        }));
+
+                        setPosts(postsWithLikeStatus);
+                    } else {
+                        // Fallback nếu không lấy được like status
+                        setPosts(posts);
+                        console.log('Loaded posts without like status');
+                    }
+                } else {
+                    setPosts(response.data);
+                }
             } else {
                 console.error('Error fetching posts:', response.error);
                 // Use mock data as fallback
@@ -521,9 +648,25 @@ export default function PersonalScreen(): JSX.Element {
         }, [session, targetUserId])
     );
 
+    const handleNavigateToProfile = (userId: string) => {
+        navigation.navigate('Personal', { userId });
+    };
+
+    const handleNavigateToProfileFromComment = (userId: string) => {
+        setShowCommentsModal(false);
+        setTimeout(() => {
+            navigation.navigate('Personal', { userId });
+        }, 100);
+    };
+
     // Render media grid for posts
     const renderMediaGrid = (media: MediaItem[]) => {
-        if (media.length === 0) return null;
+        console.log('renderMediaGrid called with media:', media);
+
+        if (!media || media.length === 0) {
+            console.log('No media found or media is empty');
+            return null;
+        }
 
         const screenWidth = Dimensions.get('window').width; // Full screen width
         const containerHeight = 300; // Increased height
@@ -607,9 +750,13 @@ export default function PersonalScreen(): JSX.Element {
                     onPress={() => openImageViewer(media, index)}
                 >
                     <Image
-                        source={{ uri: item.uri }}
+                        source={{
+                            uri: item.uri || 'https://via.placeholder.com/300x200?text=Image+Not+Found'
+                        }}
                         style={styles.mediaImage}
                         resizeMode="cover"
+                        onLoad={() => console.log('Image loaded successfully:', item.uri)}
+                        onError={(error) => console.log('Image load error:', error.nativeEvent.error, 'for URI:', item.uri)}
                     />
                     {isVideo && (
                         <View style={styles.videoOverlay}>
@@ -647,17 +794,61 @@ export default function PersonalScreen(): JSX.Element {
     };
 
     // Handle post interactions
-    const handleLikePost = (postId: string) => {
-        const updatedPosts = posts.map((post) =>
-            post.id === postId
-                ? {
-                    ...post,
-                    isLiked: !post.isLiked,
-                    likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-                }
-                : post
-        );
-        setPosts(updatedPosts);
+    const handleLikePost = async (postId: string) => {
+        if (!session) {
+            Alert.alert('Lỗi', 'Bạn cần đăng nhập để thích bài viết');
+            return;
+        }
+
+        // Prevent multiple simultaneous likes
+        if (isLiking.has(postId)) {
+            return;
+        }
+        // Mark as processing
+        setIsLiking(prev => new Set(prev).add(postId));
+        try {
+            // Gọi API toggle like
+            const userName = session.user.user_metadata.full_name || 'Unknown User';
+            
+            const result = await toggleLike({
+                userId: session.user.id,
+                postId: postId,
+                userName: userName
+            });
+
+            console.log('Toggle like result:', result);
+
+            if (result.success && result.data) {
+                // Cập nhật với data chính xác từ server
+                setPosts(currentPosts =>
+                    currentPosts.map((post) =>
+                        post.id === postId
+                            ? {
+                                ...post,
+                                isLiked: result.data!.isLiked,
+                                likes: result.data!.newLikeCount,
+                            }
+                            : post
+                    )
+                );
+                // console.log('Posts updated successfully');
+            } else {
+                console.error('Toggle like failed:', result.error);
+                Alert.alert('Lỗi', result.error || 'Không thể thực hiện like');
+            }
+        } catch (error) {
+            console.error('Error liking post:', error);
+            Alert.alert('Lỗi', 'Đã xảy ra lỗi khi thích bài viết');
+        } finally {
+            // Remove from processing set
+            // console.log('Removing like processing for post:', postId);
+            setIsLiking(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(postId);
+                // console.log('New isLiking set size:', newSet.size);
+                return newSet;
+            });
+        }
     };
 
     const handleSharePost = async (post: Post) => {
@@ -683,45 +874,175 @@ export default function PersonalScreen(): JSX.Element {
     };
 
     const loadComments = async (postId: string) => {
-        // Mock comments for now - replace with actual API call
-        const mockComments: Comment[] = [
-            {
-                id: '1',
-                content: 'Bài viết rất hay!',
-                author: {
-                    id: 'user2',
-                    name: 'Trần Thị B',
-                    avatar: 'https://picsum.photos/100/100?random=user2',
-                },
-                createdAt: new Date(),
-            },
-        ];
-        setComments(mockComments);
+        try {
+            setLoading(true);
+            const response = await getCommentsByPostId(postId);
+
+            if (response.success && response.data) {
+                setComments(response.data);
+                console.log('Loaded comments:', response.data.length);
+            } else {
+                console.error('Error loading comments:', response.error);
+                setComments([]);
+            }
+        } catch (error) {
+            console.error('Error loading comments:', error);
+            setComments([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAddComment = async () => {
-        if (!newComment.trim() || !selectedPost) return;
+        if (!newComment.trim() || !selectedPost || !session) {
+            if (!session) {
+                Alert.alert('Lỗi', 'Bạn cần đăng nhập để bình luận');
+            }
+            return;
+        }
 
-        const comment: Comment = {
-            id: Date.now().toString(),
-            content: newComment,
-            author: {
-                id: userProfile?.id || 'user1',
-                name: userProfile?.fullName || 'Người dùng',
-                avatar: userProfile?.avatar || 'https://picsum.photos/100/100?random=user1',
-            },
-            createdAt: new Date(),
-        };
+        try {
+            // Tạo comment trong database
+            const commentData = {
+                postId: selectedPost.id,
+                content: newComment.trim(),
+                authorId: session.user.id,
+            };
 
-        setComments([...comments, comment]);
-        setNewComment('');
+            const response = await createComment(commentData);
 
-        const updatedPosts = posts.map((post) =>
-            post.id === selectedPost.id
-                ? { ...post, comments: post.comments + 1 }
-                : post
+            if (response.success && response.data) {
+                // Thêm comment mới vào danh sách local
+                setComments(currentComments => [...currentComments, response.data!]);
+                setNewComment('');
+
+                // Refresh post data to get updated comment count from database
+                if (selectedPost) {
+                    try {
+                        const postResponse = await getPostById(selectedPost.id);
+                        if (postResponse.success && postResponse.data) {
+                            const updatedPost = postResponse.data;
+                            
+                            // Update posts list with fresh data from database
+                            setPosts(currentPosts =>
+                                currentPosts.map((post) =>
+                                    post.id === selectedPost.id ? updatedPost : post
+                                )
+                            );
+
+                            // Update selectedPost as well
+                            setSelectedPost(updatedPost);
+                        }
+                    } catch (refreshError) {
+                        // console.error('Error refreshing post data:', refreshError);
+                        // Fallback to manual increment if refresh fails
+                        setPosts(currentPosts =>
+                            currentPosts.map((post) =>
+                                post.id === selectedPost.id
+                                    ? { ...post, comments: post.comments + 1 }
+                                    : post
+                            )
+                        );
+                    }
+                }
+            } else {
+                Alert.alert('Lỗi', response.error || 'Không thể tạo bình luận');
+            }
+        } catch (error) {
+            console.error('Error creating comment:', error);
+            Alert.alert('Lỗi', 'Đã xảy ra lỗi khi tạo bình luận');
+        }
+    };
+
+    const handleDeleteComment = async (commentId: string, comment: Comment) => {
+        if (!session) {
+            Alert.alert('Lỗi', 'Bạn cần đăng nhập để xóa bình luận');
+            return;
+        }
+
+        // Kiểm tra quyền xóa comment (chỉ chủ comment hoặc chủ post mới được xóa)
+        const canDelete = comment.author.id === session.user.id ||
+            (selectedPost && selectedPost.author.id === session.user.id);
+
+        if (!canDelete) {
+            Alert.alert('Lỗi', 'Bạn không có quyền xóa bình luận này');
+            return;
+        }
+
+        Alert.alert(
+            'Xác nhận xóa',
+            'Bạn có chắc chắn muốn xóa bình luận này?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const response = await deleteComment(commentId, comment.author.id);
+
+                            if (response.success) {
+                                // Remove comment from local state
+                                setComments(currentComments =>
+                                    currentComments.filter(c => c.id !== commentId)
+                                );
+
+                                // Refresh post data to get updated comment count from database
+                                if (selectedPost) {
+                                    try {
+                                        const postResponse = await getPostById(selectedPost.id);
+                                        if (postResponse.success && postResponse.data) {
+                                            const updatedPost = postResponse.data;
+
+                                            // Update posts list with fresh data from database
+                                            setPosts(currentPosts =>
+                                                currentPosts.map((post) =>
+                                                    post.id === selectedPost.id ? updatedPost : post
+                                                )
+                                            );
+
+                                            // Update selectedPost as well
+                                            setSelectedPost(updatedPost);
+                                        }
+                                    } catch (refreshError) {
+                                        // console.error('Error refreshing post data:', refreshError);
+                                        // Fallback to manual decrement if refresh fails
+                                        setPosts(currentPosts =>
+                                            currentPosts.map((post) =>
+                                                post.id === selectedPost.id
+                                                    ? { ...post, comments: Math.max(post.comments - 1, 0) }
+                                                    : post
+                                            )
+                                        );
+                                    }
+                                }
+
+                                Alert.alert('Thành công', 'Đã xóa bình luận');
+                            } else {
+                                Alert.alert('Lỗi', response.error || 'Không thể xóa bình luận');
+                            }
+                        } catch (error) {
+                            console.error('Error deleting comment:', error);
+                            Alert.alert('Lỗi', 'Đã xảy ra lỗi khi xóa bình luận');
+                        }
+                    },
+                },
+            ]
         );
-        setPosts(updatedPosts);
+    };
+
+    // Helper function to refresh post data
+    const refreshPostData = async (postId: string) => {
+        try {
+            const response = await getPostsByUserId(targetUserId || '');
+            if (response.success && response.data) {
+                setPosts(response.data);
+                return response.data.find(p => p.id === postId);
+            }
+        } catch (error) {
+            console.error('Error refreshing post data:', error);
+        }
+        return null;
     };
 
     const formatDate = (date: Date | string | undefined | null) => {
@@ -768,15 +1089,19 @@ export default function PersonalScreen(): JSX.Element {
                 {/* Post Header */}
                 <View style={styles.postHeader}>
                     <View style={styles.authorInfo}>
-                        <Image
-                            source={{ uri: post.author.avatar }}
-                            style={styles.authorAvatar}
-                        />
+                        <TouchableOpacity onPress={() => handleNavigateToProfile(post.author.id)}>
+                            <Image
+                                source={{ uri: post.author.avatar }}
+                                style={styles.authorAvatar}
+                            />
+                        </TouchableOpacity>
                         <View style={styles.authorDetails}>
                             <View style={styles.authorNameContainer}>
-                                <Text style={styles.authorName}>
-                                    {post.author.name}
-                                </Text>
+                                <TouchableOpacity onPress={() => handleNavigateToProfile(post.author.id)}>
+                                    <Text style={styles.authorName}>
+                                        {post.author.name}
+                                    </Text>
+                                </TouchableOpacity>
                                 {post.feelingActivity && (
                                     <Text style={styles.feelingText}>
                                         {post.feelingActivity.type === 'feeling'
@@ -821,6 +1146,23 @@ export default function PersonalScreen(): JSX.Element {
                             )}
                         </View>
                     </View>
+                    {/* Add Edit and Delete buttons for own posts */}
+                    {isOwnProfile && session?.user?.id === post.author.id && (
+                        <View style={styles.postActions}>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => handleEditPost(post)}
+                            >
+                                <Feather name="edit-2" size={16} color="#6b7280" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => handleDeletePost(post.id)}
+                            >
+                                <Feather name="trash-2" size={16} color="#ef4444" />
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
 
                 {/* Post Content */}
@@ -883,23 +1225,46 @@ export default function PersonalScreen(): JSX.Element {
     };
 
     // Render comment
-    const renderComment = ({ item: comment }: { item: Comment }) => (
-        <View style={styles.commentItem}>
-            <Image
-                source={{ uri: comment.author.avatar }}
-                style={styles.commentAvatar}
-            />
-            <View style={styles.commentContent}>
-                <View style={styles.commentBubble}>
-                    <Text style={styles.commentAuthor}>{comment.author.name}</Text>
-                    <Text style={styles.commentText}>{comment.content}</Text>
+    const renderComment = ({ item: comment }: { item: Comment }) => {
+        // Check if current user can delete this comment
+        const canDelete = session && (
+            comment.author.id === session.user.id ||
+            (selectedPost && selectedPost.author.id === session.user.id)
+        );
+
+        return (
+            <View style={styles.commentItem}>
+                <TouchableOpacity onPress={() => handleNavigateToProfileFromComment(comment.author.id)}>
+                    <Image
+                        source={{ uri: comment.author.avatar }}
+                        style={styles.commentAvatar}
+                    />
+                </TouchableOpacity>
+                <View style={styles.commentContent}>
+                    <View style={styles.commentBubble}>
+                        <TouchableOpacity onPress={() => handleNavigateToProfileFromComment(comment.author.id)}>
+                            <Text style={styles.commentAuthor}>{comment.author.name}</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.commentText}>{comment.content}</Text>
+                    </View>
+                    <View style={styles.commentFooter}>
+                        <Text style={styles.commentDate}>
+                            {formatDate(comment.createdAt)}
+                        </Text>
+                        {canDelete && (
+                            <TouchableOpacity
+                                style={styles.deleteCommentButton}
+                                onPress={() => handleDeleteComment(comment.id, comment)}
+                            >
+                                <Feather name="trash-2" size={12} color="#ef4444" />
+                                <Text style={styles.deleteCommentText}>Xóa</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
-                <Text style={styles.commentDate}>
-                    {formatDate(comment.createdAt)}
-                </Text>
             </View>
-        </View>
-    );
+        );
+    };
 
     if (!session) {
         return (
@@ -1187,6 +1552,72 @@ export default function PersonalScreen(): JSX.Element {
                                     <Feather name="send" size={20} color="#1877f2" />
                                 </TouchableOpacity>
                             </View>
+                        </View>
+                    </Modal>
+
+                    {/* Edit Post Modal */}
+                    <Modal
+                        visible={showEditPostModal}
+                        animationType="slide"
+                        presentationStyle="pageSheet"
+                        onRequestClose={() => setShowEditPostModal(false)}
+                    >
+                        <View style={styles.modalContainer}>
+                            <View style={styles.modalHeader}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setShowEditPostModal(false);
+                                        setEditingPost(null);
+                                        setEditPostContent('');
+                                        setEditPostPrivacy('public');
+                                    }}
+                                >
+                                    <Text style={styles.commentsModalCancelButton}>Hủy</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.commentsModalTitle}>Chỉnh sửa bài viết</Text>
+                                <TouchableOpacity onPress={handleSaveEditPost}>
+                                    <Text style={styles.editModalSaveButton}>Lưu</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView style={styles.editModalContent}>
+                                {/* Content Input */}
+                                <TextInput
+                                    style={styles.editContentInput}
+                                    placeholder="Bạn đang nghĩ gì?"
+                                    placeholderTextColor="#6b7280"
+                                    multiline
+                                    value={editPostContent}
+                                    onChangeText={setEditPostContent}
+                                />
+
+                                {/* Privacy Section */}
+                                <View style={styles.editPrivacySection}>
+                                    <Text style={styles.editPrivacyLabel}>Quyền riêng tư:</Text>
+                                    <View style={styles.editPrivacyOptions}>
+                                        {PRIVACY_OPTIONS.map((option) => (
+                                            <TouchableOpacity
+                                                key={option.value}
+                                                style={[
+                                                    styles.editPrivacyOption,
+                                                    editPostPrivacy === option.value &&
+                                                    styles.editPrivacyOptionSelected,
+                                                ]}
+                                                onPress={() => setEditPostPrivacy(option.value as any)}
+                                            >
+                                                <Feather
+                                                    name={option.icon as any}
+                                                    size={16}
+                                                    color={option.color}
+                                                />
+                                                <Text style={styles.editPrivacyOptionText}>
+                                                    {option.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            </ScrollView>
                         </View>
                     </Modal>
 
@@ -2146,6 +2577,89 @@ const styles = StyleSheet.create({
     imageViewerCounterText: {
         color: 'white',
         fontSize: 16,
+    },
+    // Post action styles
+    postActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    actionButton: {
+        padding: 8,
+        marginLeft: 4,
+        borderRadius: 4,
+    },
+
+    // Edit Post Modal styles
+    editModalSaveButton: {
+        fontSize: 16,
+        color: '#1877f2',
+        fontWeight: '600',
+    },
+    editModalContent: {
+        flex: 1,
+        padding: 16,
+    },
+    editContentInput: {
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 16,
+        minHeight: 120,
+        textAlignVertical: 'top',
+        marginBottom: 20,
+    },
+    editPrivacySection: {
+        marginBottom: 20,
+    },
+    editPrivacyLabel: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#1e293b',
+        marginBottom: 12,
+    },
+    editPrivacyOptions: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    editPrivacyOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 12,
+        backgroundColor: '#f8fafc',
+    },
+    editPrivacyOptionSelected: {
+        backgroundColor: '#1877f2',
+        borderColor: '#1877f2',
+    },
+    editPrivacyOptionText: {
+        marginLeft: 6,
+        fontSize: 14,
+        color: '#1e293b',
+        fontWeight: '500',
+    },
+
+    // Comment styles
+    commentFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    deleteCommentButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 4,
+        borderRadius: 4,
+    },
+    deleteCommentText: {
+        marginLeft: 4,
+        fontSize: 12,
+        color: '#ef4444',
         fontWeight: '500',
     },
 });

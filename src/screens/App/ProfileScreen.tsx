@@ -137,8 +137,6 @@ export default function ProfileScreen(): JSX.Element {
             style={styles.container}
             showsVerticalScrollIndicator={false}
         >
-            <Text style={styles.headerTitle}>Menu</Text>
-
             {/* Header với layout ngang đơn giản */}
             <View style={styles.headerContainer}>
                 <View style={styles.headerContent}>
@@ -293,7 +291,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#6366f1',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        // paddingTop: 50,
+        paddingTop: 50,
         // borderRadius: 20,
         // marginLeft: 10,
         // marginRight: 15,

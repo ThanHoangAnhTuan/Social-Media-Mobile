@@ -5,7 +5,9 @@ import {
     PRIVACY_OPTIONS,
 } from '@/src/constants/Post';
 import {
-    createComment, getCommentsByPostId
+    createComment,
+    deleteComment,
+    getCommentsByPostId
 } from '@/src/services/comment/comment';
 import { getPostsLikeStatus, toggleLike } from '@/src/services/like/like';
 import {
@@ -34,8 +36,8 @@ import {
     Feather,
     Ionicons
 } from '@expo/vector-icons';
-import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -62,16 +64,18 @@ import {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const PostItem = memo(({ 
-    post, 
-    sessionUserId, 
-    onLike, 
-    onDelete, 
-    onEdit, 
-    onComment, 
+// Optimized PostItem component
+const PostItem = memo(({
+    post,
+    sessionUserId,
+    onLike,
+    onDelete,
+    onEdit,
+    onComment,
     onShare,
-    onNavigateToDetail,
-    renderMediaGrid 
+      onNavigateToDetail,
+    onNavigateToProfile,
+    renderMediaGrid
 }: {
     post: Post;
     sessionUserId?: string;
@@ -80,6 +84,7 @@ const PostItem = memo(({
     onEdit: (post: Post) => void;
     onComment: (post: Post) => void;
     onShare: (post: Post) => void;
+    onNavigateToProfile: (userId: string) => void;
     onNavigateToDetail: (postId: string) => void;
     renderMediaGrid: (media: MediaItem[]) => React.ReactNode;
 }) => {
@@ -96,19 +101,23 @@ const PostItem = memo(({
             {/* Post Header */}
             <View style={[styles.postHeader, { borderRadius: 12 }]}>
                 <View style={styles.authorInfo}>
-                    <Image
-                        source={{ 
-                            uri: post.author.avatar || 'https://via.placeholder.com/50',
-                            cache: 'force-cache'
-                        }}
-                        style={styles.authorAvatar}
-                        defaultSource={require('../../../assets/avatar.png')}
-                    />
+                    <TouchableOpacity onPress={() => onNavigateToProfile(post.author.id)}>
+                        <Image
+                            source={{
+                                uri: post.author.avatar || 'https://via.placeholder.com/50',
+                                cache: 'force-cache'
+                            }}
+                            style={styles.authorAvatar}
+                            defaultSource={require('../../../assets/avatar.png')}
+                        />
+                    </TouchableOpacity>
                     <View style={styles.authorDetails}>
                         <View style={styles.authorNameContainer}>
-                            <Text style={[styles.authorName]}>
-                                {post.author.name || 'Unknown User'}
-                            </Text>
+                            <TouchableOpacity onPress={() => onNavigateToProfile(post.author.id)}>
+                                <Text style={[styles.authorName]}>
+                                    {post.author.name || 'Unknown User'}
+                                </Text>
+                            </TouchableOpacity>
                             {post.feelingActivity && (
                                 <Text style={[styles.feelingText]}>
                                     {post.feelingActivity.type === 'feeling'
@@ -234,8 +243,9 @@ const PostItem = memo(({
 
 export default memo(function HomeScreen(): JSX.Element {
     const { session } = useContext(AuthContext);
+    const navigation = useNavigation<any>();
     const route = useRoute<any>();
-    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    // const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { scrollToPost, fromNotification } = route.params || {};
 
     const [posts, setPosts] = useState<Post[]>([]);
@@ -476,26 +486,21 @@ export default memo(function HomeScreen(): JSX.Element {
 
             if (response.success && response.data) {
                 const posts = response.data;
-                
+
                 // Lấy trạng thái like cho tất cả posts
                 const postIds = posts.map(post => post.id);
                 const likeStatusResponse = await getPostsLikeStatus(postIds, session.user.id);
-                
+
                 if (likeStatusResponse.success && likeStatusResponse.data) {
                     const likeStatus = likeStatusResponse.data;
-                    
+
                     // Update isLiked based on database
                     const postsWithLikeStatus = posts.map(post => ({
                         ...post,
                         isLiked: likeStatus[post.id] || false
                     }));
-                    
+
                     setPosts(postsWithLikeStatus);
-                    // console.log(
-                    //     // 'Loaded posts successfully:',
-                    //     postsWithLikeStatus.length,
-                    //     'posts'
-                    // );
                 } else {
                     // Fallback nếu không lấy được like status
                     setPosts(posts);
@@ -534,9 +539,9 @@ export default memo(function HomeScreen(): JSX.Element {
             const response = await getPostById(postId);
             if (response.success && response.data) {
                 const updatedPost = response.data;
-                
+
                 // Use functional update to get latest state
-                setPosts(currentPosts => 
+                setPosts(currentPosts =>
                     currentPosts.map((post) =>
                         post.id === postId ? updatedPost : post
                     )
@@ -730,6 +735,17 @@ export default memo(function HomeScreen(): JSX.Element {
         setSelectedMedia(selectedMedia.filter((item) => item.id !== id));
     };
 
+    const handleNavigateToProfile = useCallback((userId: string) => {
+        navigation.navigate('Personal', { userId });
+    }, [navigation]);
+
+    const handleNavigateToProfileFromComment = useCallback((userId: string) => {
+        setShowCommentsModal(false);
+        setTimeout(() => {
+            navigation.navigate('Personal', { userId });
+        }, 100);
+    }, [navigation]);
+
     const openEditModal = (post: Post) => {
         setSelectedPost(post);
         setPostContent(post.content);
@@ -910,6 +926,7 @@ export default memo(function HomeScreen(): JSX.Element {
                 onEdit={openEditModal}
                 onComment={openCommentsModal}
                 onShare={handleSharePost}
+                onNavigateToProfile={handleNavigateToProfile}
                 onNavigateToDetail={handleNavigateToDetail}
                 renderMediaGrid={renderMediaGrid}
             />
@@ -927,7 +944,7 @@ export default memo(function HomeScreen(): JSX.Element {
                         const response = await deletePost(postId, session!);
                         if (response.success) {
                             // Remove the post from local state using functional update
-                            setPosts(currentPosts => 
+                            setPosts(currentPosts =>
                                 currentPosts.filter((post) => post.id !== postId)
                             );
                             Alert.alert('Thành công', 'Đã xóa bài viết');
@@ -952,10 +969,10 @@ export default memo(function HomeScreen(): JSX.Element {
 
     const handleLikePost = useCallback(async (postId: string) => {
         if (!session) return;
-        
+
         // Prevent spam clicking
         if (isLiking.has(postId)) {
-            console.log('⏳ Like action already in progress for post:', postId);
+            console.log('Like already in progress for post:', postId);
             return;
         }
 
@@ -964,26 +981,29 @@ export default memo(function HomeScreen(): JSX.Element {
 
         const isCurrentlyLiked = currentPost.isLiked;
         const currentLikes = currentPost.likes;
-        
-        console.log(`🔄 Toggle like for post ${postId}: currently ${isCurrentlyLiked ? 'LIKED' : 'NOT LIKED'}, count: ${currentLikes}`);
-        
+
+
         // Mark as processing
         setIsLiking(prev => new Set(prev).add(postId));
-        
+        console.log('Starting like for post:', postId);
+
         try {
-            console.log(`⚡ Calling toggle API: ${!isCurrentlyLiked ? 'LIKING' : 'UNLIKING'}`);
 
             // Gọi API toggle like (không optimistic update để tránh conflict)
             const userName = session.user.user_metadata.full_name || 'Unknown User';
+            console.log('Calling toggleLike with data:', { userId: session.user.id, postId, userName });
+            
             const result = await toggleLike({
                 userId: session.user.id,
                 postId: postId,
                 userName: userName
             });
 
+            console.log('Toggle like result:', result);
+
             if (result.success && result.data) {
                 // Cập nhật với data chính xác từ server
-                setPosts(currentPosts => 
+                setPosts(currentPosts =>
                     currentPosts.map((post) =>
                         post.id === postId
                             ? {
@@ -994,19 +1014,21 @@ export default memo(function HomeScreen(): JSX.Element {
                             : post
                     )
                 );
-                console.log(`✅ Server response: ${result.data.isLiked ? 'LIKED' : 'UNLIKED'}, count: ${result.data.newLikeCount}`);
+                console.log('Posts updated successfully');
             } else {
-                console.error('❌ Error toggling like:', result.error);
+                console.error('Toggle like failed:', result.error);
                 Alert.alert('Lỗi', result.error || 'Không thể thực hiện like');
             }
         } catch (error) {
-            console.error('❌ Exception in like toggle:', error);
+            console.error('Error in handleLike:', error);
             Alert.alert('Lỗi', 'Có lỗi xảy ra khi thực hiện like');
         } finally {
             // Remove from processing set
+            console.log('Removing like processing for post:', postId);
             setIsLiking(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(postId);
+                console.log('New isLiking set size:', newSet.size);
                 return newSet;
             });
         }
@@ -1020,7 +1042,7 @@ export default memo(function HomeScreen(): JSX.Element {
             });
 
             // Use functional update to get latest state
-            setPosts(currentPosts => 
+            setPosts(currentPosts =>
                 currentPosts.map((p) =>
                     p.id === post.id ? { ...p, shares: p.shares + 1 } : p
                 )
@@ -1029,6 +1051,7 @@ export default memo(function HomeScreen(): JSX.Element {
             console.error('Error sharing post:', error);
         }
     }, []);
+
     // Move these functions outside so they can be used elsewhere
 
     const handleSyncCommentCounts = () => {
@@ -1133,17 +1156,82 @@ export default memo(function HomeScreen(): JSX.Element {
         }
     };
 
-    // const formatDate = (date: Date) => {
-    //     console.log('Formatting date:', date);
+    const handleDeleteComment = async (commentId: string, comment: Comment) => {
+        if (!session) {
+            Alert.alert('Lỗi', 'Bạn cần đăng nhập để xóa bình luận');
+            return;
+        }
 
-    //     return date.toLocaleDateString('vi-VN', {
-    //         day: '2-digit',
-    //         month: '2-digit',
-    //         year: 'numeric',
-    //         hour: '2-digit',
-    //         minute: '2-digit',
-    //     });
-    // };
+        // Kiểm tra quyền xóa comment (chỉ chủ comment hoặc chủ post mới được xóa)
+        const canDelete = comment.author.id === session.user.id ||
+            (selectedPost && selectedPost.author.id === session.user.id);
+
+        if (!canDelete) {
+            Alert.alert('Lỗi', 'Bạn không có quyền xóa bình luận này');
+            return;
+        }
+
+        Alert.alert(
+            'Xác nhận xóa',
+            'Bạn có chắc chắn muốn xóa bình luận này?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const response = await deleteComment(commentId, comment.author.id);
+
+                            if (response.success) {
+                                // Remove comment from local state
+                                setComments(currentComments =>
+                                    currentComments.filter(c => c.id !== commentId)
+                                );
+
+                                // Refresh post data to get updated comment count from database
+                                if (selectedPost) {
+                                    try {
+                                        const postResponse = await getPostById(selectedPost.id);
+                                        if (postResponse.success && postResponse.data) {
+                                            const updatedPost = postResponse.data;
+                                            
+                                            // Update posts list with fresh data from database
+                                            setPosts(currentPosts =>
+                                                currentPosts.map((post) =>
+                                                    post.id === selectedPost.id ? updatedPost : post
+                                                )
+                                            );
+
+                                            // Update selectedPost as well
+                                            setSelectedPost(updatedPost);
+                                        }
+                                    } catch (refreshError) {
+                                        console.error('Error refreshing post data:', refreshError);
+                                        // Fallback to manual decrement if refresh fails
+                                        setPosts(currentPosts =>
+                                            currentPosts.map((post) =>
+                                                post.id === selectedPost.id
+                                                    ? { ...post, comments: Math.max(post.comments - 1, 0) }
+                                                    : post
+                                            )
+                                        );
+                                    }
+                                }
+
+                                Alert.alert('Thành công', 'Đã xóa bình luận');
+                            } else {
+                                Alert.alert('Lỗi', response.error || 'Không thể xóa bình luận');
+                            }
+                        } catch (error) {
+                            console.error('Error deleting comment:', error);
+                            Alert.alert('Lỗi', 'Đã xảy ra lỗi khi xóa bình luận');
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     const renderComment = useCallback(({ item: comment }: { item: Comment }) => {
         // Check nếu comment hoặc author bị undefined
@@ -1151,30 +1239,52 @@ export default memo(function HomeScreen(): JSX.Element {
             return null;
         }
 
+        // Check if current user can delete this comment
+        const canDelete = session && (
+            comment.author.id === session.user.id ||
+            (selectedPost && selectedPost.author.id === session.user.id)
+        );
+
         return (
             <View style={styles.commentItem}>
-                <Image
-                    source={{ 
-                        uri: comment.author.avatar || 'https://via.placeholder.com/40',
-                        cache: 'force-cache'
-                    }}
-                    style={styles.commentAvatar}
-                    defaultSource={require('../../../assets/avatar.png')}
-                />
+                <TouchableOpacity onPress={() => handleNavigateToProfileFromComment(comment.author.id)}>
+                    <Image
+                        source={{
+                            uri: comment.author.avatar || 'https://via.placeholder.com/40',
+                            cache: 'force-cache'
+                        }}
+                        style={styles.commentAvatar}
+                        defaultSource={require('../../../assets/avatar.png')}
+                    />
+                </TouchableOpacity>
+
                 <View style={styles.commentContent}>
                     <View style={styles.commentBubble}>
-                        <Text style={styles.commentAuthor}>
-                            {comment.author.name || 'Unknown User'}
-                        </Text>
+                        <TouchableOpacity onPress={() => handleNavigateToProfileFromComment(comment.author.id)}>
+                            <Text style={styles.commentAuthor}>
+                                {comment.author.name || 'Unknown User'}
+                            </Text>
+                        </TouchableOpacity>
                         <Text style={styles.commentText}>{comment.content}</Text>
                     </View>
-                    {/* <Text style={styles.commentDate}>
-                        {formatDate(comment.createdAt)}
-                    </Text> */}
+                    <View style={styles.commentFooter}>
+                        {/* <Text style={styles.commentDate}>
+                            {formatDate(comment.createdAt)}
+                        </Text> */}
+                        {canDelete && (
+                            <TouchableOpacity
+                                style={styles.deleteCommentButton}
+                                onPress={() => handleDeleteComment(comment.id, comment)}
+                            >
+                                <Feather name="trash-2" size={12} color="#ef4444" />
+                                <Text style={styles.deleteCommentText}>Xóa</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
             </View>
         );
-    }, []);
+    }, [session, selectedPost, handleNavigateToProfile]);
 
     const CreatePostForm = useMemo(() => (
         <KeyboardAvoidingView
@@ -2469,5 +2579,24 @@ const styles = StyleSheet.create({
     mediaImage: {
         width: '100%',
         height: '100%',
+    },
+    // Comment delete styles
+    commentFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    deleteCommentButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 4,
+        borderRadius: 4,
+    },
+    deleteCommentText: {
+        marginLeft: 4,
+        fontSize: 12,
+        color: '#ef4444',
+        fontWeight: '500',
     },
 });

@@ -13,42 +13,48 @@ export interface LikeCheckResult {
     likeId?: string;
 }
 
-// Toggle like: tối ưu tốc độ chỉ với code, không cần SQL files  
 export const toggleLike = async (
     likeData: LikeData
 ): Promise<ServiceResponse<{ isLiked: boolean; newLikeCount: number }>> => {
     try {
-        
-        // Kiểm tra trạng thái hiện tại - chắc chắn không có duplicate
-        const { data: existingLikes, error: checkError } = await supabase
+
+        // Kiểm tra like status hiện tại trong comments table (tạm thời)
+        const { data: existingLike, error: checkError } = await supabase
             .from('comments')
             .select('id')
             .eq('post_id', likeData.postId)
             .eq('user_id', likeData.userId)
-            .eq('is_like', true);
+            .eq('is_like', true)
+            .maybeSingle();
 
         if (checkError) {
             console.error('Check error:', checkError);
             return { success: false, error: checkError.message };
         }
 
-        const hasLike = existingLikes && existingLikes.length > 0;
-        
-        // Cleanup duplicates nếu có
-        if (existingLikes && existingLikes.length > 1) {
-            await supabase
-                .from('comments')
-                .delete()
-                .eq('post_id', likeData.postId)
-                .eq('user_id', likeData.userId)
-                .eq('is_like', true);
-        }
-        
+        console.log('Existing like check result:', existingLike);
+        const hasLiked = !!existingLike;
         let isLiked: boolean;
 
-        // Thực hiện toggle đúng - KHÔNG TẠO DUPLICATE
-        if (hasLike) {
-            // Unlike - xóa tất cả likes của user cho post này
+        // Lấy current like count từ posts
+        const { data: currentPost, error: fetchError } = await supabase
+            .from('posts')
+            .select('likes')
+            .eq('id', likeData.postId)
+            .single();
+
+        if (fetchError) {
+            console.error('Fetch post error:', fetchError);
+            return { success: false, error: fetchError.message };
+        }
+
+        console.log('Current post likes:', currentPost.likes);
+        const currentLikes = currentPost.likes || 0;
+        let newLikeCount: number;
+
+        if (hasLiked) {
+            // Unlike - xóa like record và cập nhật count trong posts
+            console.log('Performing unlike...');
             const { error: deleteError } = await supabase
                 .from('comments')
                 .delete()
@@ -57,41 +63,51 @@ export const toggleLike = async (
                 .eq('is_like', true);
             
             if (deleteError) {
+                console.error('Delete error:', deleteError);
                 throw new Error(`Delete error: ${deleteError.message}`);
             }
+            
             isLiked = false;
+            newLikeCount = Math.max(currentLikes - 1, 0);
         } else {
-            // Like - thêm mới (chỉ khi chưa có)
+            // Like - thêm like record và cập nhật count trong posts
+            console.log('Performing like...');
             const { error: insertError } = await supabase
                 .from('comments')
                 .insert({
                     post_id: likeData.postId,
                     user_id: likeData.userId,
-                    content: '',
+                    content: '', // Empty content for like records
                     is_like: true,
                     created_at: new Date().toISOString(),
                 });
             
             if (insertError) {
+                console.error('Insert error:', insertError);
                 throw new Error(`Insert error: ${insertError.message}`);
             }
+            
             isLiked = true;
+            newLikeCount = currentLikes + 1;
         }
 
-        // Đếm likes và cập nhật posts table
-        const { count } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', likeData.postId)
-            .eq('is_like', true);
+        console.log('New like count:', newLikeCount);
 
-        const newLikeCount = count || 0;
-        
-        // Cập nhật count trong posts table
-        await supabase
+        // Cập nhật like count trực tiếp trong posts table
+        const { error: updateError } = await supabase
             .from('posts')
-            .update({ likes: newLikeCount })
+            .update({ 
+                likes: newLikeCount,
+                updated_at: new Date().toISOString()
+            })
             .eq('id', likeData.postId);
+
+        if (updateError) {
+            console.error('Update posts error:', updateError);
+            throw new Error(`Update posts error: ${updateError.message}`);
+        }
+
+        console.log('Toggle like completed successfully:', { isLiked, newLikeCount });
 
         // Notification async (không block UI)
         if (isLiked) {
@@ -136,7 +152,7 @@ export const toggleLike = async (
     }
 };
 
-// Lấy trạng thái like của user cho một post
+// Lấy trạng thái like của user cho một post (dùng comments table tạm thời)
 export const checkUserLikedPost = async (
     userId: string,
     postId: string
@@ -171,7 +187,7 @@ export const checkUserLikedPost = async (
     }
 };
 
-// Lấy tất cả likes của các posts (dùng cho HomeScreen load initial)
+// Lấy tất cả likes của các posts (dùng comments table tạm thời)
 export const getPostsLikeStatus = async (
     postIds: string[],
     userId: string
