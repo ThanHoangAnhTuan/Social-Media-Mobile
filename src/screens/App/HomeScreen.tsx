@@ -14,7 +14,6 @@ import {
     commentOnPost,
     createPost,
     deletePost,
-    getAllPosts,
     getAllPostsWithPrivacy,
     getPostById,
     syncAllCommentCounts,
@@ -30,13 +29,11 @@ import {
     Post,
     UpdatePostData,
 } from '@/src/types/post';
-import { RootStackParamList } from '@/src/types/route';
 import { AuthContext } from '@context/AuthContext';
 import {
     Feather,
     Ionicons
 } from '@expo/vector-icons';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
@@ -56,10 +53,11 @@ import {
     FlatList,
     Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView,
     Share,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
-    TouchableOpacity, TouchableWithoutFeedback, View, StatusBar
+    TouchableOpacity, TouchableWithoutFeedback, View
 } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -970,67 +968,47 @@ export default memo(function HomeScreen(): JSX.Element {
     const handleLikePost = useCallback(async (postId: string) => {
         if (!session) return;
 
-        // Prevent spam clicking
-        if (isLiking.has(postId)) {
-            console.log('Like already in progress for post:', postId);
-            return;
-        }
-
-        const currentPost = posts.find(p => p.id === postId);
-        if (!currentPost) return;
-
-        const isCurrentlyLiked = currentPost.isLiked;
-        const currentLikes = currentPost.likes;
-        // Mark as processing
-        setIsLiking(prev => new Set(prev).add(postId));
-        console.log('Starting like for post:', postId);
+        setIsLiking(prev => {
+            if (prev.has(postId)) {
+                // console.log('Like already in progress for post:', postId);
+                return prev;
+            }
+            const newSet = new Set(prev);
+            newSet.add(postId);
+            return newSet;
+        });
 
         try {
-
-            // Gọi API toggle like (không optimistic update để tránh conflict)
             const userName = session.user.user_metadata.full_name || 'Unknown User';
-            console.log('Calling toggleLike with data:', { userId: session.user.id, postId, userName });
 
             const result = await toggleLike({
                 userId: session.user.id,
-                postId: postId,
-                userName: userName
+                postId,
+                userName
             });
 
-            console.log('Toggle like result:', result);
-
             if (result.success && result.data) {
-                // Cập nhật với data chính xác từ server
                 setPosts(currentPosts =>
-                    currentPosts.map((post) =>
+                    currentPosts.map(post =>
                         post.id === postId
-                            ? {
-                                ...post,
-                                isLiked: result.data!.isLiked,
-                                likes: result.data!.newLikeCount,
-                            }
+                            ? { ...post, isLiked: result.data!.isLiked, likes: result.data!.newLikeCount }
                             : post
                     )
                 );
-                console.log('Posts updated successfully');
             } else {
-                console.error('Toggle like failed:', result.error);
                 Alert.alert('Lỗi', result.error || 'Không thể thực hiện like');
             }
         } catch (error) {
-            console.error('Error in handleLike:', error);
             Alert.alert('Lỗi', 'Có lỗi xảy ra khi thực hiện like');
         } finally {
-            // Remove from processing set
-            console.log('Removing like processing for post:', postId);
             setIsLiking(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(postId);
-                console.log('New isLiking set size:', newSet.size);
                 return newSet;
             });
         }
-    }, [session, posts, isLiking]);
+    }, [session]);
+
 
     const handleSharePost = useCallback(async (post: Post) => {
         try {
