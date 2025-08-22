@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import { ServiceResponse } from '../../types/response';
-import { createNotification } from '../notification/notification';
+import { createNotification, deleteLikeNotification } from '../notification/notification';
 
 export interface LikeData {
     userId: string;
@@ -13,12 +13,52 @@ export interface LikeCheckResult {
     likeId?: string;
 }
 
+// Hàm để sync số lượng like thực tế từ bảng comments
+export const syncLikeCount = async (postId: string): Promise<ServiceResponse<number>> => {
+    try {
+        // Đếm số like thực tế trong bảng comments (is_like = true)
+        const { count, error: countError } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', postId)
+            .eq('is_like', true);
+
+        if (countError) {
+            return { success: false, error: countError.message };
+        }
+
+        const likeCount = count || 0;
+
+        // Cập nhật like count trong posts table
+        const { error: updateError } = await supabase
+            .from('posts')
+            .update({ 
+                likes: likeCount,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', postId);
+
+        if (updateError) {
+            return { success: false, error: updateError.message };
+        }
+
+        console.log(`Synced like count for post ${postId}: ${likeCount} likes`);
+        return { success: true, data: likeCount };
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Lỗi không xác định',
+        };
+    }
+};
+
 export const toggleLike = async (
     likeData: LikeData
 ): Promise<ServiceResponse<{ isLiked: boolean; newLikeCount: number }>> => {
     try {
 
-        // Kiểm tra like status hiện tại trong comments table (tạm thời)
+        // Kiểm tra xem user đã like post này chưa bằng cách tìm trong bảng comments
+        // với is_like = true (đây là cách lưu trữ like trong comments table)
         const { data: existingLike, error: checkError } = await supabase
             .from('comments')
             .select('id')
@@ -53,7 +93,7 @@ export const toggleLike = async (
         let newLikeCount: number;
 
         if (hasLiked) {
-            // Unlike - xóa like record và cập nhật count trong posts
+            // UNLIKE: Xóa record like khỏi bảng comments và giảm like count
             console.log('Performing unlike...');
             const { error: deleteError } = await supabase
                 .from('comments')
@@ -61,65 +101,58 @@ export const toggleLike = async (
                 .eq('post_id', likeData.postId)
                 .eq('user_id', likeData.userId)
                 .eq('is_like', true);
-            
+
             if (deleteError) {
                 console.error('Delete error:', deleteError);
                 throw new Error(`Delete error: ${deleteError.message}`);
             }
-            
+
             isLiked = false;
             newLikeCount = Math.max(currentLikes - 1, 0);
         } else {
-            // Like - thêm like record và cập nhật count trong posts
+            // LIKE LẦN ĐẦU: Thêm record like vào bảng comments và tăng like count
             console.log('Performing like...');
             const { error: insertError } = await supabase
                 .from('comments')
                 .insert({
                     post_id: likeData.postId,
                     user_id: likeData.userId,
-                    content: '', // Empty content for like records
-                    is_like: true,
+                    content: '', // Nội dung trống cho record like
+                    is_like: true, // Đánh dấu đây là like, không phải comment
                     created_at: new Date().toISOString(),
                 });
-            
+
             if (insertError) {
                 console.error('Insert error:', insertError);
                 throw new Error(`Insert error: ${insertError.message}`);
             }
-            
+
             isLiked = true;
             newLikeCount = currentLikes + 1;
         }
 
-        console.log('New like count:', newLikeCount);
+        // console.log('New like count:', newLikeCount);
 
-        // Cập nhật like count trực tiếp trong posts table
-        const { error: updateError } = await supabase
-            .from('posts')
-            .update({ 
-                likes: newLikeCount,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', likeData.postId);
-
-        if (updateError) {
-            console.error('Update posts error:', updateError);
-            throw new Error(`Update posts error: ${updateError.message}`);
+        // Sync like count từ database để đảm bảo tính chính xác
+        const syncResult = await syncLikeCount(likeData.postId);
+        if (syncResult.success && syncResult.data !== undefined) {
+            newLikeCount = syncResult.data;
         }
 
         console.log('Toggle like completed successfully:', { isLiked, newLikeCount });
 
-        // Notification async (không block UI)
-        if (isLiked) {
-            setImmediate(async () => {
-                try {
-                    const { data: postData } = await supabase
-                        .from('posts')
-                        .select('user_id')
-                        .eq('id', likeData.postId)
-                        .single();
+        // Xử lý notification async (không block UI)
+        setImmediate(async () => {
+            try {
+                const { data: postData } = await supabase
+                    .from('posts')
+                    .select('user_id')
+                    .eq('id', likeData.postId)
+                    .single();
 
-                    if (postData && postData.user_id !== likeData.userId) {
+                if (postData && postData.user_id !== likeData.userId) {
+                    if (isLiked) {
+                        // Tạo notification khi like
                         await createNotification(
                             likeData.userId,
                             postData.user_id,
@@ -131,16 +164,23 @@ export const toggleLike = async (
                                 description: 'Nhấn để xem bài viết'
                             }
                         );
+                    } else {
+                        // Xóa notification khi unlike
+                        await deleteLikeNotification(
+                            likeData.userId,
+                            postData.user_id,
+                            likeData.postId
+                        );
                     }
-                } catch (error) {
-                    console.error('Notification error:', error);
                 }
-            });
-        }
+            } catch (error) {
+                console.error('Notification error:', error);
+            }
+        });
 
-        return { 
-            success: true, 
-            data: { isLiked, newLikeCount } 
+        return {
+            success: true,
+            data: { isLiked, newLikeCount }
         };
 
     } catch (error) {
@@ -152,7 +192,7 @@ export const toggleLike = async (
     }
 };
 
-// Lấy trạng thái like của user cho một post (dùng comments table tạm thời)
+// Lấy trạng thái like của user cho một post (sử dụng bảng comments với is_like = true)
 export const checkUserLikedPost = async (
     userId: string,
     postId: string
@@ -163,7 +203,7 @@ export const checkUserLikedPost = async (
             .select('id')
             .eq('user_id', userId)
             .eq('post_id', postId)
-            .eq('is_like', true)
+            .eq('is_like', true) // Chỉ tìm record like
             .maybeSingle();
 
         if (error) {
@@ -187,7 +227,7 @@ export const checkUserLikedPost = async (
     }
 };
 
-// Lấy tất cả likes của các posts (dùng comments table tạm thời)
+// Lấy tất cả likes của các posts (sử dụng bảng comments với is_like = true)
 export const getPostsLikeStatus = async (
     postIds: string[],
     userId: string
@@ -202,7 +242,7 @@ export const getPostsLikeStatus = async (
             .select('post_id')
             .in('post_id', postIds)
             .eq('user_id', userId)
-            .eq('is_like', true);
+            .eq('is_like', true); // Chỉ lấy record like
 
         if (error) {
             console.error('Error fetching posts like status:', error);

@@ -13,9 +13,9 @@ import {
     UpdatePostData,
 } from '@/src/types/post';
 import { ServiceResponse } from '@/src/types/response';
+import { getFriendshipStatus } from '../friend/friend';
 import { createNotification } from '../notification/notification';
 import { getUserAvatar } from '../user/UserInfo';
-import { getFriendshipStatus } from '../friend/friend';
 
 // Helper function to process media URLs
 const processMediaUrls = (media: any): MediaItem[] => {
@@ -1367,14 +1367,15 @@ const commentOnPost = async (
     }
 };
 
-// Hàm để sync comment count với số comment thực tế
+// Hàm để sync comment count với số comment thực tế (không bao gồm like records)
 const syncCommentCount = async (postId: string): Promise<ServiceResponse<any>> => {
     try {
-        // Đếm số comment thực tế
+        // Đếm số comment thực tế (chỉ những record với is_like = false)
         const { count, error: countError } = await supabase
             .from('comments')
             .select('*', { count: 'exact', head: true })
-            .eq('post_id', postId);
+            .eq('post_id', postId)
+            .eq('is_like', false); // Chỉ đếm comment thật, không đếm like records
 
         if (countError) {
             return { success: false, error: countError.message };

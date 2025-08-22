@@ -173,3 +173,37 @@ export const deleteNotification = async (notificationId: string): Promise<boolea
         return false;
     }
 };
+
+// Xóa notification like cụ thể khi user unlike
+export const deleteLikeNotification = async (
+    senderId: string,
+    receiverId: string,
+    postId: string
+): Promise<boolean> => {
+    try {
+        // Không xóa nếu sender và receiver là cùng một người
+        if (senderId === receiverId) {
+            console.log('Skipping delete notification: sender and receiver are the same');
+            return true;
+        }
+
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .eq('senderId', senderId)
+            .eq('receiverId', receiverId)
+            .eq('type', 'like')
+            .ilike('data', `%"postId":"${postId}"%`); // Tìm notification có chứa postId trong data
+
+        if (error) {
+            console.error('Error deleting like notification:', error);
+            return false;
+        }
+
+        console.log('Like notification deleted successfully');
+        return true;
+    } catch (error) {
+        console.error('Error in deleteLikeNotification:', error);
+        return false;
+    }
+};
