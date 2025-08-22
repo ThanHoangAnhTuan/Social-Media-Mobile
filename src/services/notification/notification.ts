@@ -22,7 +22,7 @@ export const createNotification = async (
                 receiverId: receiverId,  // Người nhận (người được thông báo)
                 type: type,
                 title: title,
-                data: data || {},
+                data: JSON.stringify(data || {}), // Ensure JSON string
                 created_at: new Date().toISOString()
             });
 
@@ -52,7 +52,15 @@ export const getNotifications = async (userId: string): Promise<NotificationItem
             return [];
         }
 
-        return data || [];
+        // Parse JSON data field
+        const parsedData = (data || []).map(notification => ({
+            ...notification,
+            data: typeof notification.data === 'string' 
+                ? JSON.parse(notification.data) 
+                : notification.data
+        }));
+
+        return parsedData;
     } catch (error) {
         console.error('Error in getNotifications:', error);
         return [];

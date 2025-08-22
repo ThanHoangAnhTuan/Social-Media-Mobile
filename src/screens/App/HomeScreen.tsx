@@ -13,6 +13,7 @@ import {
     createPost,
     deletePost,
     getAllPosts,
+    getAllPostsWithPrivacy,
     getPostById,
     syncAllCommentCounts,
     updatePost
@@ -27,12 +28,14 @@ import {
     Post,
     UpdatePostData,
 } from '@/src/types/post';
+import { RootStackParamList } from '@/src/types/route';
 import { AuthContext } from '@context/AuthContext';
 import {
     Feather,
     Ionicons
 } from '@expo/vector-icons';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Session } from '@supabase/supabase-js';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -54,12 +57,11 @@ import {
     StyleSheet,
     Text,
     TextInput,
-    TouchableOpacity, TouchableWithoutFeedback, View
+    TouchableOpacity, TouchableWithoutFeedback, View, StatusBar
 } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Optimized PostItem component
 const PostItem = memo(({ 
     post, 
     sessionUserId, 
@@ -68,6 +70,7 @@ const PostItem = memo(({
     onEdit, 
     onComment, 
     onShare,
+    onNavigateToDetail,
     renderMediaGrid 
 }: {
     post: Post;
@@ -77,13 +80,13 @@ const PostItem = memo(({
     onEdit: (post: Post) => void;
     onComment: (post: Post) => void;
     onShare: (post: Post) => void;
+    onNavigateToDetail: (postId: string) => void;
     renderMediaGrid: (media: MediaItem[]) => React.ReactNode;
 }) => {
     const privacyInfo = PRIVACY_OPTIONS.find(
         (opt) => opt.value === post.privacy
     );
 
-    // Check nếu post hoặc author bị undefined
     if (!post || !post.author) {
         return null;
     }
@@ -161,23 +164,25 @@ const PostItem = memo(({
             </View>
 
             {/* Post Content with Background */}
-            <View>
-                <Text style={[styles.postContent]}>{post.content}</Text>
-            </View>
+            <TouchableOpacity onPress={() => onNavigateToDetail(post.id)} activeOpacity={0.8}>
+                <View>
+                    <Text style={[styles.postContent]}>{post.content}</Text>
+                </View>
 
-            {/* Post Media */}
-            {renderMediaGrid(post.media)}
+                {/* Post Media */}
+                {renderMediaGrid(post.media)}
 
-            {/* Post Stats */}
-            <View style={styles.postStats}>
-                <Text style={styles.statsText}>
-                    {post.likes} lượt thích
-                </Text>
-                <Text style={styles.statsText}>
-                    {post.comments} bình luận
-                </Text>
-                <Text style={styles.statsText}>{post.shares} chia sẻ</Text>
-            </View>
+                {/* Post Stats */}
+                <View style={styles.postStats}>
+                    <Text style={styles.statsText}>
+                        {post.likes} lượt thích
+                    </Text>
+                    <Text style={styles.statsText}>
+                        {post.comments} bình luận
+                    </Text>
+                    <Text style={styles.statsText}>{post.shares} chia sẻ</Text>
+                </View>
+            </TouchableOpacity>
 
             {/* Post Interactions */}
             <View style={styles.postInteractions}>
@@ -230,6 +235,7 @@ const PostItem = memo(({
 export default memo(function HomeScreen(): JSX.Element {
     const { session } = useContext(AuthContext);
     const route = useRoute<any>();
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { scrollToPost, fromNotification } = route.params || {};
 
     const [posts, setPosts] = useState<Post[]>([]);
@@ -262,6 +268,11 @@ export default memo(function HomeScreen(): JSX.Element {
 
     const [avatar, setAvatar] = useState<string>('');
     const [searchingForPost, setSearchingForPost] = useState<string | null>(null);
+    
+    // States cho ImageViewer
+    const [showImageViewer, setShowImageViewer] = useState<boolean>(false);
+    const [viewingImages, setViewingImages] = useState<MediaItem[]>([]);
+    const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
     const fetchUserProfile = async (session: Session) => {
         try {
             setLoading(true);
@@ -369,7 +380,7 @@ export default memo(function HomeScreen(): JSX.Element {
 
     useEffect(() => {
         requestPermissions();
-    }, []); // Add dependency array to prevent infinite calls
+    }, []); 
 
     useEffect(() => {
         if (session) {
@@ -389,21 +400,17 @@ export default memo(function HomeScreen(): JSX.Element {
                 if (targetPost) {
                     console.log('Target post found:', targetPost.id);
                     setSearchingForPost(null);
-                    // Open comments modal for the target post automatically
                     setTimeout(() => {
                         openCommentsModal(targetPost);
-                    }, 500); // Small delay to ensure UI is ready
+                    }, 500);
                 } else {
                     console.log('Target post not found in current posts list, retrying...');
-                    // If posts are loaded but target not found, try to fetch it specifically
                     handleMissingPost(scrollToPost);
                 }
             }
-            // If posts.length === 0, wait for loadPosts to complete
         }
     }, [scrollToPost, posts, fromNotification]);
 
-    // Clear search state when posts are loaded and we're searching
     useEffect(() => {
         if (searchingForPost && posts.length > 0) {
             const targetPost = posts.find(post => post.id === searchingForPost);
@@ -464,8 +471,8 @@ export default memo(function HomeScreen(): JSX.Element {
 
         setLoading(true);
         try {
-            const response = await getAllPosts();
-            // console.log('getAllPosts response:', response);
+            const response = await getAllPostsWithPrivacy(session.user.id);
+            // console.log('getAllPostsWithPrivacy response:', response);
 
             if (response.success && response.data) {
                 const posts = response.data;
@@ -547,6 +554,35 @@ export default memo(function HomeScreen(): JSX.Element {
         }
         return null;
     };
+
+    const handleNavigateToDetail = useCallback((postId: string) => {
+        navigation.navigate('PostDetail', { postId });
+    }, [navigation]);
+
+    // Functions cho ImageViewer
+    const openImageViewer = useCallback((images: MediaItem[], startIndex: number = 0) => {
+        setViewingImages(images);
+        setCurrentImageIndex(startIndex);
+        setShowImageViewer(true);
+    }, []);
+
+    const closeImageViewer = useCallback(() => {
+        setShowImageViewer(false);
+        setViewingImages([]);
+        setCurrentImageIndex(0);
+    }, []);
+
+    const goToNextImage = useCallback(() => {
+        if (currentImageIndex < viewingImages.length - 1) {
+            setCurrentImageIndex(currentImageIndex + 1);
+        }
+    }, [currentImageIndex, viewingImages.length]);
+
+    const goToPreviousImage = useCallback(() => {
+        if (currentImageIndex > 0) {
+            setCurrentImageIndex(currentImageIndex - 1);
+        }
+    }, [currentImageIndex]);
 
     const handleCreatePost = async () => {
         console.log('Creating post with data:', {
@@ -707,31 +743,91 @@ export default memo(function HomeScreen(): JSX.Element {
     const renderMediaGrid = useCallback((media: MediaItem[]) => {
         if (media.length === 0) return null;
 
+        const screenWidth = Dimensions.get('window').width; // Full screen width
+        const containerHeight = 300; // Height for better display
+
         const renderMediaItem = (item: MediaItem, index: number) => {
             const isVideo = item.type === 'video';
 
+            // Calculate dimensions based on media count
             let itemStyle = {};
+
             if (media.length === 1) {
-                itemStyle = styles.singleMedia;
+                itemStyle = {
+                    width: screenWidth,
+                    height: containerHeight,
+                    marginRight: 0,
+                    marginBottom: 0,
+                };
             } else if (media.length === 2) {
-                itemStyle = styles.doubleMedia;
+                itemStyle = {
+                    width: (screenWidth - 2) / 2,
+                    height: containerHeight,
+                    marginRight: index === 0 ? 2 : 0,
+                    marginBottom: 0,
+                };
             } else if (media.length === 3) {
                 if (index === 0) {
-                    itemStyle = styles.tripleMediaMain;
+                    itemStyle = {
+                        width: screenWidth,
+                        height: containerHeight * 0.6,
+                        marginRight: 0,
+                        marginBottom: 2,
+                    };
                 } else {
-                    itemStyle = styles.tripleMediaSide;
+                    itemStyle = {
+                        width: (screenWidth - 2) / 2,
+                        height: containerHeight * 0.4 - 2,
+                        marginRight: index === 1 ? 2 : 0,
+                        marginBottom: 0,
+                    };
                 }
             } else {
-                itemStyle = styles.quadMedia;
+                // 4 or more images - 2x2 grid
+                const itemWidth = (screenWidth - 2) / 2;
+                const itemHeight = (containerHeight - 2) / 2;
+                
+                if (index === 0) {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 2,
+                        marginBottom: 2,
+                    };
+                } else if (index === 1) {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 0,
+                        marginBottom: 2,
+                    };
+                } else if (index === 2) {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 2,
+                        marginBottom: 0,
+                    };
+                } else {
+                    itemStyle = {
+                        width: itemWidth,
+                        height: itemHeight,
+                        marginRight: 0,
+                        marginBottom: 0,
+                    };
+                }
             }
 
             return (
-                <View key={item.id} style={[styles.mediaItem, itemStyle]}>
+                <TouchableOpacity 
+                    key={item.id} 
+                    style={[styles.mediaItem, itemStyle]}
+                    onPress={() => openImageViewer(media, index)}
+                >
                     <Image
                         source={{ uri: item.uri }}
                         style={styles.mediaImage}
                         resizeMode="cover"
-                        loadingIndicatorSource={require('../../../assets/image.png')}
                     />
                     {isVideo && (
                         <View style={styles.videoOverlay}>
@@ -742,6 +838,7 @@ export default memo(function HomeScreen(): JSX.Element {
                             />
                         </View>
                     )}
+                    {/* Show "+X" overlay for 4th image if there are more than 4 images */}
                     {index === 3 && media.length > 4 && (
                         <View style={styles.moreMediaOverlay}>
                             <Text style={styles.moreMediaText}>
@@ -749,69 +846,23 @@ export default memo(function HomeScreen(): JSX.Element {
                             </Text>
                         </View>
                     )}
-                </View>
+                </TouchableOpacity>
             );
         };
 
-        if (media.length === 3) {
-            return (
-                <View style={styles.mediaContainer}>
-                    <View style={[styles.mediaItem, styles.tripleMediaMain]}>
-                        <Image
-                            source={{ uri: media[0].uri }}
-                            style={styles.mediaImage}
-                            resizeMode="cover"
-                            loadingIndicatorSource={require('../../../assets/image.png')}
-                        />
-                        {media[0].type === 'video' && (
-                            <View style={styles.videoOverlay}>
-                                <Ionicons
-                                    name="play-circle"
-                                    size={40}
-                                    color="rgba(255,255,255,0.8)"
-                                />
-                            </View>
-                        )}
-                    </View>
-                    <View style={styles.tripleMediaColumn}>
-                        {media.slice(1, 3).map((item, index) => (
-                            <View
-                                key={item.id}
-                                style={[
-                                    styles.mediaItem,
-                                    styles.tripleMediaSide,
-                                ]}
-                            >
-                                <Image
-                                    source={{ uri: item.uri }}
-                                    style={styles.mediaImage}
-                                    resizeMode="cover"
-                                    loadingIndicatorSource={require('../../../assets/image.png')}
-                                />
-                                {item.type === 'video' && (
-                                    <View style={styles.videoOverlay}>
-                                        <Ionicons
-                                            name="play-circle"
-                                            size={40}
-                                            color="rgba(255,255,255,0.8)"
-                                        />
-                                    </View>
-                                )}
-                            </View>
-                        ))}
-                    </View>
-                </View>
-            );
-        }
-
         return (
-            <View style={styles.mediaContainer}>
-                {media
-                    .slice(0, 4)
-                    .map((item, index) => renderMediaItem(item, index))}
+            <View style={[styles.mediaContainer, { 
+                height: media.length === 1 ? containerHeight : 
+                       media.length === 2 ? containerHeight : 
+                       media.length === 3 ? containerHeight : containerHeight,
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start'
+            }]}>
+                {media.slice(0, 4).map((item, index) => renderMediaItem(item, index))}
             </View>
         );
-    }, []);
+    }, [openImageViewer]);
 
     const renderCreateFormMedia = () => {
         if (selectedMedia.length === 0) return null;
@@ -859,10 +910,11 @@ export default memo(function HomeScreen(): JSX.Element {
                 onEdit={openEditModal}
                 onComment={openCommentsModal}
                 onShare={handleSharePost}
+                onNavigateToDetail={handleNavigateToDetail}
                 renderMediaGrid={renderMediaGrid}
             />
         );
-    }, [session?.user?.id, renderMediaGrid]);
+    }, [session?.user?.id, renderMediaGrid, handleNavigateToDetail]);
 
     const handleDeletePost = useCallback(async (postId: string) => {
         Alert.alert('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa bài viết này?', [
@@ -1613,6 +1665,89 @@ export default memo(function HomeScreen(): JSX.Element {
                     </View>
                 </View>
             </Modal>
+
+            {/* Image Viewer Modal */}
+            <Modal
+                visible={showImageViewer}
+                transparent={true}
+                animationType="fade"
+                statusBarTranslucent={true}
+            >
+                <StatusBar backgroundColor="rgba(0,0,0,0.9)" barStyle="light-content" />
+                <View style={styles.imageViewerContainer}>
+                    {/* Header */}
+                    <View style={styles.imageViewerHeader}>
+                        <TouchableOpacity
+                            style={styles.imageViewerCloseButton}
+                            onPress={closeImageViewer}
+                        >
+                            <Feather name="x" size={24} color="#fff" />
+                        </TouchableOpacity>
+                        <Text style={styles.imageViewerCounter}>
+                            {currentImageIndex + 1} / {viewingImages.length}
+                        </Text>
+                    </View>
+
+                    {/* Image Display */}
+                    <View style={styles.imageViewerContent}>
+                        {viewingImages.length > 0 && (
+                            <ScrollView
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                onMomentumScrollEnd={(event) => {
+                                    const newIndex = Math.round(
+                                        event.nativeEvent.contentOffset.x / Dimensions.get('window').width
+                                    );
+                                    setCurrentImageIndex(newIndex);
+                                }}
+                                contentOffset={{ x: currentImageIndex * Dimensions.get('window').width, y: 0 }}
+                            >
+                                {viewingImages.map((image, index) => (
+                                    <View key={index} style={styles.imageViewerSlide}>
+                                        <Image
+                                            source={{ uri: image.uri }}
+                                            style={styles.imageViewerImage}
+                                            resizeMode="contain"
+                                        />
+                                        {image.type === 'video' && (
+                                            <View style={styles.videoOverlay}>
+                                                <Ionicons 
+                                                    name="play-circle" 
+                                                    size={80} 
+                                                    color="rgba(255,255,255,0.9)" 
+                                                />
+                                            </View>
+                                        )}
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        )}
+                    </View>
+
+                    {/* Navigation Arrows */}
+                    {viewingImages.length > 1 && (
+                        <>
+                            {currentImageIndex > 0 && (
+                                <TouchableOpacity
+                                    style={[styles.imageViewerArrow, styles.imageViewerArrowLeft]}
+                                    onPress={goToPreviousImage}
+                                >
+                                    <Feather name="chevron-left" size={30} color="#fff" />
+                                </TouchableOpacity>
+                            )}
+                            {currentImageIndex < viewingImages.length - 1 && (
+                                <TouchableOpacity
+                                    style={[styles.imageViewerArrow, styles.imageViewerArrowRight]}
+                                    onPress={goToNextImage}
+                                >
+                                    <Feather name="chevron-right" size={30} color="#fff" />
+                                </TouchableOpacity>
+                            )}
+                        </>
+                    )}
+                </View>
+            </Modal>
         </View>
     );
 });
@@ -1761,60 +1896,121 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         marginBottom: 12,
     },
-    mediaContainer: {
-        marginBottom: 0,
-        borderRadius: 0,
-        overflow: 'hidden',
+    singleImageContainer: {
+        marginVertical: 8,
+    },
+    singleImage: {
+        width: '100%',
+        height: 400, 
+        resizeMode: 'cover',
+    },
+    twoImagesContainer: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 2,
-        backgroundColor: '#f0f2f5',
+        marginVertical: 8,
+        gap: 4,
     },
-    mediaItem: {
-        position: 'relative',
+    halfImageContainer: {
+        flex: 1,
     },
-    singleMedia: {
+    halfImage: {
         width: '100%',
-        height: 400,
-    },
-    doubleMedia: {
-        width: '49.5%',
         height: 250,
+        borderRadius: 8,
+        resizeMode: 'cover',
     },
-    tripleMediaLarge: {
-        width: '66%',
-        height: 300,
+    threeImagesContainer: {
+        flexDirection: 'row',
+        marginVertical: 8,
+        height: 250,
+        gap: 4,
     },
-    tripleMediaSmall: {
-        width: '32%',
-        height: 148,
-        marginBottom: 4,
+    mainImageContainer: {
+        flex: 2,
     },
-    tripleMediaMain: {
-        width: '66%',
-        height: 300,
-    },
-    tripleMediaColumn: {
-        width: '32%',
-        flexDirection: 'column',
-        gap: 2,
-    },
-    tripleMediaSide: {
-        width: '100%',
-        height: 148,
-    },
-    quadMedia: {
-        width: '49.5%',
-        height: 200,
-    },
-    gridMedia: {
-        width: (screenWidth - 68) / 2,
-        height: 150,
-    },
-    mediaImage: {
+    mainImage: {
         width: '100%',
         height: '100%',
-        borderRadius: 0,
+        borderRadius: 8,
+        resizeMode: 'cover',
+    },
+    sideImagesContainer: {
+        flex: 1,
+        marginLeft: 4,
+        gap: 4,
+    },
+    sideImageContainer: {
+        flex: 1,
+    },
+    sideImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+        resizeMode: 'cover',
+    },
+    fourImagesContainer: {
+        flexDirection: 'row',
+        marginVertical: 8,
+        height: 280,
+        gap: 4,
+    },
+    mainFourImageContainer: {
+        flex: 2,
+    },
+    mainFourImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+        resizeMode: 'cover',
+    },
+    sideFourImagesContainer: {
+        flex: 1,
+        gap: 4,
+        marginLeft: 4,
+    },
+    sideFourImageContainer: {
+        flex: 1,
+        position: 'relative',
+    },
+    sideFourImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+        resizeMode: 'cover',
+    },
+    topRowContainer: {
+        flexDirection: 'row',
+        gap: 4,
+        marginBottom: 4,
+    },
+    bottomRowContainer: {
+        flexDirection: 'row',
+        gap: 4,
+    },
+    quarterImageContainer: {
+        flex: 1,
+        position: 'relative',
+    },
+    quarterImage: {
+        width: '100%',
+        height: 120,
+        borderRadius: 8,
+        resizeMode: 'cover',
+    },
+    moreImagesOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 8,
+    },
+    moreImagesText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
     },
     videoOverlay: {
         position: 'absolute',
@@ -2202,5 +2398,76 @@ const styles = StyleSheet.create({
     },
     commentSendButton: {
         padding: 8,
+    },
+    imageViewerContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageViewerHeader: {
+        position: 'absolute',
+        top: 50,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        zIndex: 1000,
+    },
+    imageViewerCloseButton: {
+        padding: 10,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 25,
+    },
+    imageViewerCounter: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '500',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 15,
+    },
+    imageViewerContent: {
+        flex: 1,
+        width: '100%',
+    },
+    imageViewerSlide: {
+        width: Dimensions.get('window').width,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageViewerImage: {
+        width: '100%',
+        height: '80%',
+    },
+    imageViewerArrow: {
+        position: 'absolute',
+        top: '50%',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 25,
+        padding: 15,
+        zIndex: 1000,
+    },
+    imageViewerArrowLeft: {
+        left: 20,
+    },
+    imageViewerArrowRight: {
+        right: 20,
+    },
+    // New media grid styles
+    mediaContainer: {
+        marginVertical: 8,
+    },
+    mediaItem: {
+        borderRadius: 8,
+        overflow: 'hidden',
+        backgroundColor: '#f0f0f0',
+    },
+    mediaImage: {
+        width: '100%',
+        height: '100%',
     },
 });

@@ -12,6 +12,10 @@ export type RootStackParamList = {
     AppDrawer: undefined;
     Test: undefined;
     Personal: { userId?: string };
+    PostDetail: { 
+        postId: string; 
+        fromNotification?: boolean;
+    };
 };
 
 export type HomeStackParamList = {
